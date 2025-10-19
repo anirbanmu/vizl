@@ -1,0 +1,4 @@
+.kiro/
+node_modules/
+dist/
+.env
