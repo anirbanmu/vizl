@@ -8,7 +8,23 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "npm run dev:client & npm run dev:server",
+    "dev:client": "npm run dev --workspace=@vizl/client",
+    "dev:server": "npm run dev --workspace=@vizl/server",
+    "build": "npm run clean && npm run build:shared && (npm run build:client & npm run build:server & wait)",
+    "build:shared": "npm run build --workspace=@vizl/shared",
+    "build:client": "npm run build --workspace=@vizl/client",
+    "build:server": "npm run build --workspace=@vizl/server",
+    "clean": "rimraf --glob \"./packages/*/dist\" \"./packages/*/node_modules/.tmp\"",
+    "clean:node-modules": "rimraf --glob \"./node_modules\" \"./packages/*/node_modules\"",
+    "clean:all": "npm run clean && npm run clean:node-modules",
+    "start": "npm run start --workspace=@vizl/server",
+    "start:clean": "npm run clean && npm run build && npm run start",
+    "check": "npm run check --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "lint:fix": "npm run lint:fix --workspaces --if-present",
+    "format": "npm run format --workspaces --if-present",
+    "format:check": "npm run format:check --workspaces --if-present"
   },
   "repository": {
     "type": "git",
@@ -22,6 +38,8 @@
   },
   "homepage": "https://github.com/anirbanmu/vizl#readme",
   "devDependencies": {
+    "@types/node": "^24.8.1",
+    "rimraf": "^6.0.1",
     "typescript": "^5.9.3"
   }
 }

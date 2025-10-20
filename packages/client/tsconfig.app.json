@@ -1,0 +1,25 @@
+{
+  "extends": "@tsconfig/svelte/tsconfig.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "types": ["svelte", "vite/client"],
+    "noEmit": true,
+    /**
+     * Disallow JavaScript files - TypeScript only
+     */
+    "allowJs": false,
+    "moduleDetection": "force",
+    "paths": {
+      "@vizl/shared": ["../shared/src/index.ts"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.svelte",
+    "vite.config.ts",
+    "svelte.config.ts"
+  ]
+}

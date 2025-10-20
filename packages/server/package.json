@@ -1,0 +1,29 @@
+{
+  "name": "@vizl/server",
+  "version": "1.0.0",
+  "description": "Vizl server package - Hono backend for SoundCloud API proxy",
+  "main": "dist/server.bundle.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/server.bundle.cjs",
+    "start": "node dist/server.bundle.cjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write . --ignore-path ../../.prettierignore",
+    "format:check": "prettier --check . --ignore-path ../../.prettierignore"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "tsx": "^4.20.6"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.5",
+    "@vizl/shared": "*",
+    "hono": "^4.10.1",
+    "keyv": "^5.5.3",
+    "ky": "^1.12.0"
+  }
+}
