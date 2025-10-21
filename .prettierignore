@@ -1,0 +1,21 @@
+# build outputs
+dist/
+build/
+.tmp/
+node_modules/
+
+# generated files
+*.d.ts
+*.tsbuildinfo
+
+# lock files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# misc
+.DS_Store
+coverage/
+.env
+.env.*
+!.env.example

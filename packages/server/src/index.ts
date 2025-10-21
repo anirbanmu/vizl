@@ -1,29 +1,29 @@
-import { Hono } from "hono";
-import { serve } from "@hono/node-server";
-import type { Track } from "@vizl/shared";
+import { Hono } from 'hono';
+import { serve } from '@hono/node-server';
+import type { Track } from '@vizl/shared';
 
 const app = new Hono();
 
 // health check endpoint
-app.get("/health", (c) => {
+app.get('/health', c => {
   return c.json({
-    status: "ok",
+    status: 'ok',
     timestamp: new Date().toISOString(),
-    service: "vizl-server",
+    service: 'vizl-server',
   });
 });
 
 // example endpoint that uses shared types
-app.get("/api/example", (c) => {
+app.get('/api/example', c => {
   // example track using shared type to verify cross-package imports work
   const exampleTrack: Track = {
-    streamUrl: "https://example.com/stream",
-    url: "https://soundcloud.com/example",
-    title: "Example Track",
+    streamUrl: 'https://example.com/stream',
+    url: 'https://soundcloud.com/example',
+    title: 'Example Track',
     artwork: null,
     user: {
-      name: "Example User",
-      profile: "https://soundcloud.com/example-user",
+      name: 'Example User',
+      profile: 'https://soundcloud.com/example-user',
     },
   };
 
