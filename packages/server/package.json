@@ -17,6 +17,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "esbuild": "^0.25.11",
     "tsx": "^4.20.6"
   },
   "dependencies": {
