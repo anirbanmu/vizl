@@ -26,7 +26,9 @@
     "format": "npm run format --workspaces --if-present",
     "format:check": "npm run format:check --workspaces --if-present",
     "all": "npm run clean && npm run format && npm run lint:fix && npm run build",
-    "all:check": "npm run clean && npm run format:check && npm run lint && npm run build"
+    "all:check": "npm run clean && npm run format:check && npm run lint && npm run build",
+    "taze": "npx taze@latest major -r",
+    "taze:w": "npx taze@latest major -r -w"
   },
   "repository": {
     "type": "git",
