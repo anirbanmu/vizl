@@ -50,6 +50,13 @@ class Logger {
     });
   }
 
+  flushSync() {
+    if (this.logBuffer.length === 0) return;
+
+    const messages = this.logBuffer.splice(0);
+    messages.forEach(msg => process.stdout.write(msg));
+  }
+
   private scheduleFlush() {
     if (this.flushTimer) return;
 
