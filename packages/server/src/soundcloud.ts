@@ -200,7 +200,7 @@ export class ConcurrencyLimitedSoundcloudClient implements SoundcloudClientInter
 
   constructor(
     private readonly client: SoundcloudClientInterface,
-    private readonly concurrency: number = 10
+    private readonly concurrency: number = 10,
   ) {
     this.limiter = new Limiter(concurrency);
   }
