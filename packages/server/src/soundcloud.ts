@@ -1,4 +1,4 @@
-import type { Track } from '@vizl/shared';
+import { Cache, Limiter, Track } from '@vizl/shared';
 
 const SOUNDCLOUD_API_BASE_URL = 'https://api.soundcloud.com';
 const SOUNDCLOUD_OAUTH_TOKEN_URL = `${SOUNDCLOUD_API_BASE_URL}/oauth2/token`;
@@ -165,5 +165,47 @@ export class SoundcloudClient implements SoundcloudClientInterface {
         profile: trackData.user.permalink_url,
       },
     };
+  }
+}
+
+export class CachedSoundcloudClient implements SoundcloudClientInterface {
+  constructor(
+    private readonly client: SoundcloudClientInterface,
+    private readonly cache: Cache<Track | null> = new Cache<Track | null>(60 * 60 * 1000, 10 * 60 * 1000),
+  ) {}
+
+  async resolve(url: string): Promise<Track> {
+    const cached = this.cache.get(url);
+
+    if (cached !== undefined) {
+      if (cached === null) {
+        throw new Error('SoundCloud track resolution failed (cached error)');
+      }
+      return cached;
+    }
+
+    try {
+      const result = await this.client.resolve(url);
+      this.cache.set(url, result);
+      return result;
+    } catch (error) {
+      this.cache.set(url, null);
+      throw error;
+    }
+  }
+}
+
+export class ConcurrencyLimitedSoundcloudClient implements SoundcloudClientInterface {
+  private readonly limiter: Limiter;
+
+  constructor(
+    private readonly client: SoundcloudClientInterface,
+    private readonly concurrency: number = 10
+  ) {
+    this.limiter = new Limiter(concurrency);
+  }
+
+  async resolve(url: string): Promise<Track> {
+    return this.limiter.run(() => this.client.resolve(url));
   }
 }
