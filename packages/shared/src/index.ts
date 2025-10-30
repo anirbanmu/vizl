@@ -2,3 +2,4 @@
 export type { Track } from './track.js';
 export { AUDIO_CONFIG, type AudioConfig } from './audio.js';
 export { Cache } from './cache.js';
+export { Limiter } from './limiter.js';
