@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [svelte()],
   resolve: {
     alias: {
-      '@vizl/shared': path.resolve(__dirname, '../shared/src/index.ts'),
+      '@vizl/common': path.resolve(__dirname, '../common/src/index.ts'),
     },
   },
   server: {

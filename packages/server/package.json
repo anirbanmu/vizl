@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.5",
-    "@vizl/shared": "*",
+    "@vizl/common": "*",
     "hono": "^4.10.4",
     "keyv": "^5.5.3",
     "ky": "^1.13.0",

@@ -13,7 +13,7 @@
     "allowJs": false,
     "moduleDetection": "force",
     "paths": {
-      "@vizl/shared": ["../shared/src/index.ts"]
+      "@vizl/common": ["../common/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.svelte", "vite.config.ts", "svelte.config.ts"]

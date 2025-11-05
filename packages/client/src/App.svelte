@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Track } from '@vizl/shared';
+  import type { Track } from '@vizl/common';
 
   // proof-of-concept: verify cross-package imports work
   const exampleTrack: Track = {

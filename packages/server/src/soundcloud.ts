@@ -1,4 +1,4 @@
-import { Cache, Limiter, Track } from '@vizl/shared';
+import { Cache, Limiter, Track } from '@vizl/common';
 
 const SOUNDCLOUD_API_BASE_URL = 'https://api.soundcloud.com';
 const SOUNDCLOUD_OAUTH_TOKEN_URL = `${SOUNDCLOUD_API_BASE_URL}/oauth2/token`;

@@ -11,10 +11,10 @@
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
     "paths": {
-      "@vizl/shared": ["../shared/src/index.ts"]
+      "@vizl/common": ["../common/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"],
-  "references": [{ "path": "../shared" }]
+  "references": [{ "path": "../common" }]
 }

@@ -14,7 +14,7 @@
     "format:check": "prettier --check . --ignore-path ../../.prettierignore"
   },
   "dependencies": {
-    "@vizl/shared": "*"
+    "@vizl/common": "*"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^6.2.1",
