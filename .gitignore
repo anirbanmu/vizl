@@ -38,3 +38,5 @@ coverage/
 .cache/
 .temp/
 .tmp/
+
+scratch/
