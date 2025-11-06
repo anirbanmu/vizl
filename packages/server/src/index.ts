@@ -3,8 +3,8 @@ import { serve } from '@hono/node-server';
 import { cors } from 'hono/cors';
 import { compress } from 'hono/compress';
 import { secureHeaders } from 'hono/secure-headers';
-import type { Track } from '@vizl/common';
-import { Cache } from '@vizl/common';
+import type { Track } from '../../common/track';
+import { Cache } from '../../common/cache';
 import { initializeLogger, getLogger } from './logger.js';
 import {
   SoundcloudClient,
