@@ -13,3 +13,16 @@ export const AUDIO_CONFIG = {
 } as const;
 
 export type AudioConfig = typeof AUDIO_CONFIG;
+
+// per frame
+export interface AudioAnalysisData {
+  frequencyData: Float32Array;
+  timeData: Float32Array;
+}
+
+export interface AudioAnalysisMetadata {
+  minDb: number;
+  maxDb: number;
+  frequencyBinCount: number;
+  timeFftSize: number;
+}
