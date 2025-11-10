@@ -4,7 +4,7 @@ import { cors } from 'hono/cors';
 import { compress } from 'hono/compress';
 import { secureHeaders } from 'hono/secure-headers';
 import type { Track } from '../../common/track';
-import { Cache } from '../../common/cache';
+import { Cache } from './utils/cache.js';
 import { initializeLogger, getLogger } from './logger.js';
 import {
   SoundcloudClient,

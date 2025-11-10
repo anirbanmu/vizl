@@ -14,12 +14,13 @@ export const AUDIO_CONFIG = {
 
 export type AudioConfig = typeof AUDIO_CONFIG;
 
-// per frame
+// raw audio data arrays produced by web audio api analyzers each frame
 export interface AudioAnalysisData {
   frequencyData: Float32Array;
   timeData: Float32Array;
 }
 
+// static metadata about audio analysis configuration set during initialization
 export interface AudioAnalysisMetadata {
   minDb: number;
   maxDb: number;

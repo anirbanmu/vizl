@@ -1,5 +1,5 @@
-import { Cache } from '../../common/cache';
-import { Limiter } from '../../common/limiter';
+import { Cache } from './utils/cache.js';
+import { Limiter } from './utils/limiter.js';
 import type { Track } from '../../common/track';
 
 const SOUNDCLOUD_API_BASE_URL = 'https://api.soundcloud.com';

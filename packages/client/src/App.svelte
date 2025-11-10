@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Track } from '@common/track';
-  import { AUDIO_CONFIG } from '@common/audio';
+  import { AUDIO_CONFIG } from './audio/types';
 
   let count = $state(0);
 
