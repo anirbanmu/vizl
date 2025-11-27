@@ -1,12 +1,12 @@
 <script lang="ts">
   import { AUDIO_CONFIG } from './audio/types';
-  import { TestTriangleVisualiser } from './visualizers/test-triangle';
+  import { FrequencyBackgroundVisualiser } from './visualizers/freq-background';
   import type { AudioAnalysisMetadata } from './audio/types';
   import { TestAudioGenerator, type TestAudioType } from './audio/test-generator';
   import { onMount } from 'svelte';
 
   let canvas = $state<HTMLCanvasElement>();
-  let visualizer: TestTriangleVisualiser | null = null;
+  let visualizer: FrequencyBackgroundVisualiser | null = null;
   let webglError = $state<string | null>(null);
   let audioContext: AudioContext | null = null;
   let testAudioGenerator: TestAudioGenerator | null = null;
@@ -70,9 +70,8 @@
     };
 
     try {
-      visualizer = new TestTriangleVisualiser(canvas, metadata);
-      visualizer.resize(600, 600);
-      visualizer.initialize();
+      visualizer = new FrequencyBackgroundVisualiser(canvas, metadata);
+      visualizer.resize();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
       webglError = `webgl initialization failed: ${message}`;
@@ -81,21 +80,21 @@
     }
 
     const frequencyData = new Float32Array(metadata.frequencyBinCount);
+    const frequencyDataNormalized = new Float32Array(metadata.frequencyBinCount);
     const timeData = new Float32Array(metadata.timeFftSize);
+    const dbRange = metadata.maxDb - metadata.minDb;
 
     function animate(): void {
       if (!visualizer || !frequencyAnalyser || !timeAnalyser) return;
 
       frequencyAnalyser.getFloatFrequencyData(frequencyData);
-
-      for (let i = 0; i < frequencyData.length; i++) {
-        frequencyData[i] = (frequencyData[i] - metadata.minDb) / (metadata.maxDb - metadata.minDb);
-        frequencyData[i] = Math.max(0, Math.min(1, frequencyData[i]));
-      }
-
       timeAnalyser.getFloatTimeDomainData(timeData);
 
-      visualizer.render({ frequencyData, timeData });
+      for (let i = 0; i < frequencyData.length; i++) {
+        frequencyDataNormalized[i] = Math.max(0, Math.min(1, (frequencyData[i] - metadata.minDb) / dbRange));
+      }
+
+      visualizer.render({ frequencyData: frequencyDataNormalized, timeData });
       requestAnimationFrame(animate);
     }
 
@@ -166,45 +165,64 @@
 
 <style>
   main {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    padding: 2rem;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
     background: #000;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
   h1 {
+    position: absolute;
+    top: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
     color: #00d1b2;
-    margin-bottom: 2rem;
+    margin: 0;
     font-size: 3rem;
     font-weight: 300;
     letter-spacing: 0.5rem;
+    z-index: 100;
   }
 
   .visualizer {
-    margin-bottom: 2rem;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
   }
 
   .visualizer canvas {
     display: block;
-    width: 600px;
-    height: 600px;
+    width: 100%;
+    height: 100%;
   }
 
   .visualizer .error {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     color: #ff6b6b;
     padding: 2rem;
     font-family: monospace;
   }
 
   .controls {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     flex-direction: column;
     gap: 1rem;
     align-items: center;
+    z-index: 100;
   }
 
   button {

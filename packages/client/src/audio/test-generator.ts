@@ -11,6 +11,8 @@ export class TestAudioGenerator {
   private gainNode: GainNode;
   private noiseNode: AudioBufferSourceNode | null = null;
   private isPlaying = false;
+  private sweepTimeoutId: number | null = null;
+  private beatTimeoutId: number | null = null;
 
   constructor(private audioContext: AudioContext) {
     this.gainNode = audioContext.createGain();
@@ -41,6 +43,16 @@ export class TestAudioGenerator {
   stop(): void {
     this.isPlaying = false;
 
+    if (this.sweepTimeoutId !== null) {
+      clearTimeout(this.sweepTimeoutId);
+      this.sweepTimeoutId = null;
+    }
+
+    if (this.beatTimeoutId !== null) {
+      clearTimeout(this.beatTimeoutId);
+      this.beatTimeoutId = null;
+    }
+
     if (this.oscillator) {
       this.oscillator.stop();
       this.oscillator.disconnect();
@@ -70,19 +82,22 @@ export class TestAudioGenerator {
     this.oscillator = this.audioContext.createOscillator();
     this.oscillator.type = 'sine';
     this.oscillator.frequency.value = 100;
+    this.oscillator.connect(this.gainNode);
+    this.oscillator.start();
 
-    const now = this.audioContext.currentTime;
     const duration = 4;
 
     const sweep = (): void => {
       if (!this.isPlaying || !this.oscillator) return;
+
+      const now = this.audioContext.currentTime;
+      this.oscillator.frequency.cancelScheduledValues(now);
       this.oscillator.frequency.setValueAtTime(100, now);
-      this.oscillator.frequency.exponentialRampToValueAtTime(2000, now + duration);
-      setTimeout(() => sweep(), duration * 1000);
+      this.oscillator.frequency.exponentialRampToValueAtTime(12000, now + duration);
+
+      this.sweepTimeoutId = setTimeout(() => sweep(), duration * 1000) as unknown as number;
     };
 
-    this.oscillator.connect(this.gainNode);
-    this.oscillator.start();
     sweep();
   }
 
@@ -122,7 +137,7 @@ export class TestAudioGenerator {
       osc.start(now);
       osc.stop(now + duration);
 
-      setTimeout(() => playBeat(), duration * 1000);
+      this.beatTimeoutId = setTimeout(() => playBeat(), duration * 1000) as unknown as number;
     };
 
     playBeat();

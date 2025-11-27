@@ -5,6 +5,7 @@ const config = {
   printWidth: 120,
   proseWrap: 'always',
   arrowParens: 'avoid',
+  endOfLine: 'lf',
 };
 
 export default config;

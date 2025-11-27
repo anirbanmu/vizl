@@ -1,4 +1,4 @@
-import type { AudioAnalysisMetadata } from '../audio/types';
+import type { AudioAnalysisData, AudioAnalysisMetadata } from '../audio/types';
 import { BaseAudioVisualiser, type Vector2d } from './base';
 
 class WebGLInitializationException extends Error {
@@ -44,9 +44,23 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
     };
   }
 
+  render(data: AudioAnalysisData): void {
+    if (this.resizeNeeded()) {
+      this.resize();
+    }
+    this.renderFrame(data);
+  }
+
+  protected abstract renderFrame(data: AudioAnalysisData): void;
+
+  protected onResize(): void {
+    // hook for subclasses to update uniforms on resize
+  }
+
   resize(width: number = 0, height: number = 0): void {
     super.resize(width, height);
     this.gl.viewport(0, 0, this.gl.drawingBufferWidth, this.gl.drawingBufferHeight);
+    this.onResize();
   }
 
   protected compileShader(shaderType: number, source: string): WebGLShader {
