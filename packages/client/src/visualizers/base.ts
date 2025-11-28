@@ -6,16 +6,37 @@ export interface Vector2d {
 }
 
 export abstract class BaseAudioVisualiser {
+  private resizeObserver: ResizeObserver;
+
   constructor(
     protected canvas: HTMLCanvasElement,
     private metadata: AudioAnalysisMetadata,
-  ) {}
+  ) {
+    this.resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === this.canvas) {
+          const { width, height } = entry.contentRect;
+          this.resize(width, height);
+        }
+      }
+    });
+    this.resizeObserver.observe(this.canvas);
+  }
 
   abstract render(data: AudioAnalysisData): void;
 
   resize(width: number = 0, height: number = 0): void {
-    this.canvas.width = width || this.canvas.clientWidth;
-    this.canvas.height = height || this.canvas.clientHeight;
+    const newWidth = width || this.canvas.clientWidth;
+    const newHeight = height || this.canvas.clientHeight;
+
+    if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
+      this.canvas.width = newWidth;
+      this.canvas.height = newHeight;
+    }
+  }
+
+  destroy(): void {
+    this.resizeObserver.disconnect();
   }
 
   protected minDim(): number {

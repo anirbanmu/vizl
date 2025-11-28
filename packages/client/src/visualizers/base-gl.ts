@@ -28,11 +28,6 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
     this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
   }
 
-  protected resizeNeeded(): boolean {
-    const { drawingBufferWidth, drawingBufferHeight } = this.gl;
-    return this.canvas.clientWidth !== drawingBufferWidth || this.canvas.clientHeight !== drawingBufferHeight;
-  }
-
   protected minDim(): number {
     return Math.min(this.gl.drawingBufferWidth, this.gl.drawingBufferHeight);
   }
@@ -45,9 +40,6 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
   }
 
   render(data: AudioAnalysisData): void {
-    if (this.resizeNeeded()) {
-      this.resize();
-    }
     this.renderFrame(data);
   }
 
