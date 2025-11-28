@@ -15,6 +15,7 @@ build/
 .vscode/
 .idea/
 .kiro/
+.agent/
 *.swp
 *.swo
 *~
