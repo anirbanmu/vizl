@@ -1,12 +1,15 @@
 <script lang="ts">
   import { AUDIO_CONFIG } from './audio/types';
   import { FrequencyBackgroundVisualiser } from './visualizers/freq-background';
+  import { TimeRadialVisualiser } from './visualizers/time-radial';
   import type { AudioAnalysisMetadata } from './audio/types';
   import { TestAudioGenerator, type TestAudioType } from './audio/test-generator';
   import { onMount } from 'svelte';
 
-  let canvas = $state<HTMLCanvasElement>();
-  let visualizer: FrequencyBackgroundVisualiser | null = null;
+  let freqCanvas = $state<HTMLCanvasElement>();
+  let timeCanvas = $state<HTMLCanvasElement>();
+  let freqVisualizer: FrequencyBackgroundVisualiser | null = null;
+  let timeVisualizer: TimeRadialVisualiser | null = null;
   let webglError = $state<string | null>(null);
   let audioContext: AudioContext | null = null;
   let testAudioGenerator: TestAudioGenerator | null = null;
@@ -58,7 +61,7 @@
   }
 
   onMount(() => {
-    if (!canvas) return;
+    if (!freqCanvas || !timeCanvas) return;
 
     setupAudioContext();
 
@@ -70,8 +73,10 @@
     };
 
     try {
-      visualizer = new FrequencyBackgroundVisualiser(canvas, metadata);
-      visualizer.resize();
+      freqVisualizer = new FrequencyBackgroundVisualiser(freqCanvas, metadata);
+      freqVisualizer.resize();
+      timeVisualizer = new TimeRadialVisualiser(timeCanvas, metadata);
+      timeVisualizer.resize();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
       webglError = `webgl initialization failed: ${message}`;
@@ -85,7 +90,7 @@
     const dbRange = metadata.maxDb - metadata.minDb;
 
     function animate(): void {
-      if (!visualizer || !frequencyAnalyser || !timeAnalyser) return;
+      if (!freqVisualizer || !timeVisualizer || !frequencyAnalyser || !timeAnalyser) return;
 
       frequencyAnalyser.getFloatFrequencyData(frequencyData);
       timeAnalyser.getFloatTimeDomainData(timeData);
@@ -94,15 +99,19 @@
         frequencyDataNormalized[i] = Math.max(0, Math.min(1, (frequencyData[i] - metadata.minDb) / dbRange));
       }
 
-      visualizer.render({ frequencyData: frequencyDataNormalized, timeData });
+      freqVisualizer.render({ frequencyData: frequencyDataNormalized, timeData });
+      timeVisualizer.render({ frequencyData: frequencyDataNormalized, timeData });
       requestAnimationFrame(animate);
     }
 
     animate();
 
     const handleResize = (): void => {
-      if (visualizer) {
-        visualizer.resize();
+      if (freqVisualizer) {
+        freqVisualizer.resize();
+      }
+      if (timeVisualizer) {
+        timeVisualizer.resize();
       }
     };
 
@@ -113,7 +122,8 @@
       if (testAudioGenerator) {
         testAudioGenerator.stop();
       }
-      visualizer = null;
+      freqVisualizer = null;
+      timeVisualizer = null;
     };
   });
 </script>
@@ -125,7 +135,8 @@
     {#if webglError}
       <p class="error">{webglError}</p>
     {:else}
-      <canvas bind:this={canvas}></canvas>
+      <canvas bind:this={freqCanvas} class="layer" style="z-index: 1; opacity: 0.5;"></canvas>
+      <canvas bind:this={timeCanvas} class="layer" style="z-index: 2;"></canvas>
     {/if}
   </div>
 
@@ -197,7 +208,10 @@
     height: 100%;
   }
 
-  .visualizer canvas {
+  .visualizer .layer {
+    position: absolute;
+    top: 0;
+    left: 0;
     display: block;
     width: 100%;
     height: 100%;
