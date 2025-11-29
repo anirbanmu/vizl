@@ -1,14 +1,17 @@
 <script lang="ts">
   import { AUDIO_CONFIG } from './audio/types';
   import { FrequencyBackgroundVisualiser } from './visualizers/freq-background';
+  import { FrequencyRadialVisualiser } from './visualizers/freq-radial';
   import { TimeRadialVisualiser } from './visualizers/time-radial';
   import type { AudioAnalysisMetadata } from './audio/types';
   import { TestAudioGenerator, type TestAudioType } from './audio/test-generator';
   import { onMount } from 'svelte';
 
   let freqCanvas = $state<HTMLCanvasElement>();
+  let freqRadialCanvas = $state<HTMLCanvasElement>();
   let timeCanvas = $state<HTMLCanvasElement>();
   let freqVisualizer: FrequencyBackgroundVisualiser | null = null;
+  let freqRadialVisualizer: FrequencyRadialVisualiser | null = null;
   let timeVisualizer: TimeRadialVisualiser | null = null;
   let webglError = $state<string | null>(null);
   let audioContext: AudioContext | null = null;
@@ -61,7 +64,7 @@
   }
 
   onMount(() => {
-    if (!freqCanvas || !timeCanvas) return;
+    if (!freqCanvas || !freqRadialCanvas || !timeCanvas) return;
 
     setupAudioContext();
 
@@ -75,6 +78,8 @@
     try {
       freqVisualizer = new FrequencyBackgroundVisualiser(freqCanvas, metadata);
       freqVisualizer.resize();
+      freqRadialVisualizer = new FrequencyRadialVisualiser(freqRadialCanvas, metadata);
+      freqRadialVisualizer.resize();
       timeVisualizer = new TimeRadialVisualiser(timeCanvas, metadata);
       timeVisualizer.resize();
     } catch (error) {
@@ -90,7 +95,7 @@
     const dbRange = metadata.maxDb - metadata.minDb;
 
     function animate(): void {
-      if (!freqVisualizer || !timeVisualizer || !frequencyAnalyser || !timeAnalyser) return;
+      if (!freqVisualizer || !freqRadialVisualizer || !timeVisualizer || !frequencyAnalyser || !timeAnalyser) return;
 
       frequencyAnalyser.getFloatFrequencyData(frequencyData);
       timeAnalyser.getFloatTimeDomainData(timeData);
@@ -100,6 +105,7 @@
       }
 
       freqVisualizer.render({ frequencyData: frequencyDataNormalized, timeData });
+      freqRadialVisualizer.render({ frequencyData: frequencyDataNormalized, timeData });
       timeVisualizer.render({ frequencyData: frequencyDataNormalized, timeData });
       requestAnimationFrame(animate);
     }
@@ -109,6 +115,9 @@
     const handleResize = (): void => {
       if (freqVisualizer) {
         freqVisualizer.resize();
+      }
+      if (freqRadialVisualizer) {
+        freqRadialVisualizer.resize();
       }
       if (timeVisualizer) {
         timeVisualizer.resize();
@@ -123,6 +132,7 @@
         testAudioGenerator.stop();
       }
       freqVisualizer = null;
+      freqRadialVisualizer = null;
       timeVisualizer = null;
     };
   });
@@ -137,6 +147,7 @@
     {:else}
       <canvas bind:this={freqCanvas} class="layer" style="z-index: 1; opacity: 0.5;"></canvas>
       <canvas bind:this={timeCanvas} class="layer" style="z-index: 2;"></canvas>
+      <canvas bind:this={freqRadialCanvas} class="layer" style="z-index: 3;"></canvas>
     {/if}
   </div>
 
@@ -146,28 +157,16 @@
     </button>
 
     <div class="audio-types">
-      <button
-        onclick={() => changeTestAudioType('sine')}
-        class:selected={currentTestAudioType === 'sine'}
-      >
+      <button onclick={() => changeTestAudioType('sine')} class:selected={currentTestAudioType === 'sine'}>
         sine
       </button>
-      <button
-        onclick={() => changeTestAudioType('sweep')}
-        class:selected={currentTestAudioType === 'sweep'}
-      >
+      <button onclick={() => changeTestAudioType('sweep')} class:selected={currentTestAudioType === 'sweep'}>
         sweep
       </button>
-      <button
-        onclick={() => changeTestAudioType('noise')}
-        class:selected={currentTestAudioType === 'noise'}
-      >
+      <button onclick={() => changeTestAudioType('noise')} class:selected={currentTestAudioType === 'noise'}>
         noise
       </button>
-      <button
-        onclick={() => changeTestAudioType('beat')}
-        class:selected={currentTestAudioType === 'beat'}
-      >
+      <button onclick={() => changeTestAudioType('beat')} class:selected={currentTestAudioType === 'beat'}>
         beat
       </button>
     </div>

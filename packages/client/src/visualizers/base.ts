@@ -5,6 +5,11 @@ export interface Vector2d {
   y: number;
 }
 
+export function hexToRGB(h: number): Array<number> {
+  const mask = 0xff;
+  return [(h >> 16) & mask, (h >> 8) & mask, h & mask].map(x => x / 255);
+}
+
 export abstract class BaseAudioVisualiser {
   private resizeObserver: ResizeObserver;
 
@@ -12,7 +17,7 @@ export abstract class BaseAudioVisualiser {
     protected canvas: HTMLCanvasElement,
     private metadata: AudioAnalysisMetadata,
   ) {
-    this.resizeObserver = new ResizeObserver((entries) => {
+    this.resizeObserver = new ResizeObserver(entries => {
       for (const entry of entries) {
         if (entry.target === this.canvas) {
           const { width, height } = entry.contentRect;
