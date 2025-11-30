@@ -6,7 +6,7 @@ const FREQUENCY_BAR_DIVS = 28;
 const MIN_RADIUS_SCALE = 0.15;
 const MAX_RADIUS_SCALE = 0.5; // controls how much the base radius expands with intensity
 const BAR_STACK_HEIGHT_SCALE = 0.35; // height of the bar stack relative to screen size
-const RADIAL_INCREMENT_SCALE = 0.05; // base height of each bar segment relative to stack height
+const GAP_PERCENTAGE = 0.2; // 20% of each segment is gap
 
 export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
   private dataTexture!: WebGLTexture;
@@ -15,7 +15,6 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
   private vertCount = 0;
   private barDivs = FREQUENCY_BAR_DIVS;
   private lineWidths!: Vector2d;
-  private barOffsetsBuffer = new Float32Array(FREQUENCY_BAR_DIVS * 2);
 
   constructor(canvas: HTMLCanvasElement, metadata: AudioAnalysisMetadata) {
     super(canvas, {
@@ -61,20 +60,26 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
 
     const scalingDim = this.minDim() / 2;
 
-    // calculate line widths (gaps between bars)
-    // we want the gap to increase as we go outward
-    this.lineWidths = {
-      x: 2,
-      y: pickGapUpperBound(2, this.barDivs, scalingDim * 0.2),
-    };
+    // calculate geometric constants
+    // we model the "bar stack" as a series of segments, where each segment contains a bar and a gap.
+    // the segments grow quadratically in size.
+    const totalStackHeight = scalingDim * BAR_STACK_HEIGHT_SCALE;
 
-    // calculate bar offsets (radii relative to baseRadius)
-    // we pass 0 as baseRadius to get pure offsets for the static geometry
-    const maxRadiusOffset = scalingDim * BAR_STACK_HEIGHT_SCALE;
-    computeBarOffsets(this.barDivs, this.lineWidths, { x: 0, y: maxRadiusOffset }, this.barOffsetsBuffer);
+    // heuristic: start with a small segment height (approx half of the average)
+    const startSegmentHeight = (totalStackHeight / this.barDivs) * 0.5;
 
-    const barOffsetsLoc = this.getUniformLocation(this.program, 'barOffsets');
-    this.gl.uniform2fv(barOffsetsLoc, this.barOffsetsBuffer);
+    // solve for the quadratic curve C(i) = A*i + B*i^2
+    // such that C(0) = 0, C(1) = startHeight, C(N) = totalHeight
+    const { A, B } = solveGrowth(totalStackHeight, startSegmentHeight, this.barDivs);
+
+    const uCumulativePolyLoc = this.getUniformLocation(this.program, 'uCumulativePoly');
+    this.gl.uniform2f(uCumulativePolyLoc, A, B);
+
+    const uGapPercentageLoc = this.getUniformLocation(this.program, 'uGapPercentage');
+    this.gl.uniform1f(uGapPercentageLoc, GAP_PERCENTAGE);
+
+    const uMaxRadiusLoc = this.getUniformLocation(this.program, 'uMaxRadius');
+    this.gl.uniform1f(uMaxRadiusLoc, totalStackHeight);
   }
 
   private prepShaders(): void {
@@ -177,33 +182,19 @@ function computeIntensityFactor(frequencyData: Float32Array): number {
   return rMultiplier / (frequencyData.length / 4);
 }
 
-function computeBarOffsets(
-  barCount: number,
-  gapWidthRange: Vector2d,
-  radii: Vector2d,
-  targetBuffer: Float32Array,
-): void {
-  const maxLength = radii.y - radii.x;
-
-  // calculate the height of each bar segment
-  const radialIncrement = (RADIAL_INCREMENT_SCALE * maxLength) / barCount;
-  // calculate the multiplier to increase bar height as we go outwards
-  const radialMultiplier = (2 * (maxLength - barCount * radialIncrement)) / (barCount * (barCount - 1));
-
-  const lineWidthInc = (gapWidthRange.y - gapWidthRange.x) / barCount;
-
-  let lastOuterRadius = radii.x;
-  for (let i = 0; i < barCount; ++i) {
-    const innerRadius = lastOuterRadius;
-    const outerRadius = innerRadius + (radialIncrement + radialMultiplier * i);
-    targetBuffer[i * 2] = innerRadius;
-    targetBuffer[i * 2 + 1] = outerRadius;
-    lastOuterRadius = outerRadius + (gapWidthRange.x + lineWidthInc * i);
-  }
-}
-
-function pickGapUpperBound(gapRangeStart: number, segmentCount: number, length: number): number {
-  return gapRangeStart + (2 * (length - segmentCount * gapRangeStart)) / (segmentCount - 1);
+/**
+ * solves for the quadratic coefficients A and B for a cumulative growth function:
+ * C(i) = A*i + B*i^2
+ *
+ * constraints:
+ * 1. C(0) = 0 (Implicit)
+ * 2. C(1) = startSize (The size of the first item)
+ * 3. C(count) = totalSize (The cumulative size of all items)
+ */
+function solveGrowth(totalSize: number, startSize: number, count: number): { A: number; B: number } {
+  const B = (totalSize - count * startSize) / (count * (count - 1));
+  const A = startSize - B;
+  return { A, B };
 }
 
 function computeVertexAttributes(
@@ -236,7 +227,8 @@ const aspectCorrectingVertShader = `#version 300 es
     in vec2 barAngles; // angles of this bar. (start, end)
 
     uniform vec2 dimensions;
-    uniform vec2 barOffsets[FREQUENCY_BAR_DIVS];
+    uniform vec2 uCumulativePoly; // x: A, y: B for C(i) = A*i + B*i^2
+    uniform float uGapPercentage;
     uniform float baseRadius;
     uniform sampler2D magnitudes;
 
@@ -261,10 +253,28 @@ const aspectCorrectingVertShader = `#version 300 es
         return vec4(cos(angle) * radius * aspect.x, sin(angle) * radius * aspect.y, 0.0, 1.0);
     }
 
+    float getCumulativeHeight(float i) {
+        return uCumulativePoly.x * i + uCumulativePoly.y * i * i;
+    }
+
     void main() {
         angles = barAngles;
         normalizedMagnitude = getMagnitude(int(index.x));
-        radii = barOffsets[int(index.y)] + baseRadius;
+
+        float i = index.y;
+
+        // calculate the start of this segment and the next segment
+        float startRadius = baseRadius + getCumulativeHeight(i);
+        float nextRadius = baseRadius + getCumulativeHeight(i + 1.0);
+
+        // the segment height is the difference
+        float segmentHeight = nextRadius - startRadius;
+
+        // the bar occupies the first (1.0 - gap) portion of the segment
+        float barHeight = segmentHeight * (1.0 - uGapPercentage);
+
+        radii = vec2(startRadius, startRadius + barHeight);
+
         divIndex = index.y;
 
         float minDim = min(dimensions.x, dimensions.y);
@@ -276,8 +286,8 @@ const freqBarsFragShader = `#version 300 es
     precision highp float;
 
     uniform vec2 dimensions;
-    uniform vec2 barOffsets[FREQUENCY_BAR_DIVS];
     uniform float baseRadius;
+    uniform float uMaxRadius;
 
     uniform sampler2D colorGradient;
 
@@ -345,7 +355,7 @@ const freqBarsFragShader = `#version 300 es
             return;
         }
 
-        fragColor = getColor(radius, vec2(barOffsets[0].x + baseRadius, barOffsets[FREQUENCY_BAR_DIVS - 1].y + baseRadius));
+        fragColor = getColor(radius, vec2(baseRadius, baseRadius + uMaxRadius));
         fragColor = applyRadialEdgeTransparency(fragColor, radius, vec2(innerRadius, outerRadius));
         fragColor = applyBarEdgeTransparency(fragColor, pos, angles);
     }
