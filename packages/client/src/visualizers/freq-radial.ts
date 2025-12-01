@@ -6,7 +6,8 @@ const FREQUENCY_BAR_DIVS = 28;
 const MIN_RADIUS_SCALE = 0.15;
 const MAX_RADIUS_SCALE = 0.5; // controls how much the base radius expands with intensity
 const BAR_STACK_HEIGHT_SCALE = 0.35; // height of the bar stack relative to screen size
-const GAP_PERCENTAGE = 0.2; // 20% of each segment is gap
+const STACK_GAP_PERCENTAGE = 0.2; // 20% of each segment is gap (radial)
+const ANGULAR_GAP_PERCENTAGE = 0.1; // 10% of the angular slice is gap
 
 export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
   private dataTexture!: WebGLTexture;
@@ -75,8 +76,8 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
     const uCumulativePolyLoc = this.getUniformLocation(this.program, 'uCumulativePoly');
     this.gl.uniform2f(uCumulativePolyLoc, A, B);
 
-    const uGapPercentageLoc = this.getUniformLocation(this.program, 'uGapPercentage');
-    this.gl.uniform1f(uGapPercentageLoc, GAP_PERCENTAGE);
+    const uStackGapPercentageLoc = this.getUniformLocation(this.program, 'uStackGapPercentage');
+    this.gl.uniform1f(uStackGapPercentageLoc, STACK_GAP_PERCENTAGE);
 
     const uMaxRadiusLoc = this.getUniformLocation(this.program, 'uMaxRadius');
     this.gl.uniform1f(uMaxRadiusLoc, totalStackHeight);
@@ -102,7 +103,7 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
     this.program = this.createProgram(vertexSource, fragmentSource);
     this.gl.useProgram(this.program);
 
-    const vertProperties = computeVertexAttributes(this.frequencyBinCount, 0.1, this.barDivs);
+    const vertProperties = computeVertexAttributes(this.frequencyBinCount, ANGULAR_GAP_PERCENTAGE, this.barDivs);
 
     const indexLoc = this.getAttributeLocation(this.program, 'index');
     const indexBuffer = this.createBuffer(new Float32Array(vertProperties.indices), this.gl.STATIC_DRAW);
@@ -228,7 +229,7 @@ const aspectCorrectingVertShader = `#version 300 es
 
     uniform vec2 dimensions;
     uniform vec2 uCumulativePoly; // x: A, y: B for C(i) = A*i + B*i^2
-    uniform float uGapPercentage;
+    uniform float uStackGapPercentage;
     uniform float baseRadius;
     uniform sampler2D magnitudes;
 
@@ -271,7 +272,7 @@ const aspectCorrectingVertShader = `#version 300 es
         float segmentHeight = nextRadius - startRadius;
 
         // the bar occupies the first (1.0 - gap) portion of the segment
-        float barHeight = segmentHeight * (1.0 - uGapPercentage);
+        float barHeight = segmentHeight * (1.0 - uStackGapPercentage);
 
         radii = vec2(startRadius, startRadius + barHeight);
 
