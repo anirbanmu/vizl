@@ -308,51 +308,23 @@ interface GradientStop {
 }
 
 function createGradientTexture(stops: GradientStop[], width: number): Uint8Array {
-  const data = new Uint8Array(width * 4);
-  const sortedStops = [...stops].sort((a, b) => a.stop - b.stop);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = 1;
+  const ctx = canvas.getContext('2d');
 
-  let currentStopIndex = 0;
-
-  for (let i = 0; i < width; i++) {
-    const t = i / (width - 1);
-
-    while (currentStopIndex < sortedStops.length - 1 && t > sortedStops[currentStopIndex + 1].stop) {
-      currentStopIndex++;
-    }
-
-    const startStop = sortedStops[currentStopIndex];
-    const endStop = sortedStops[currentStopIndex + 1];
-
-    let r, g, b, a;
-
-    if (!endStop) {
-      const rgb = hexToRGB(startStop.hex);
-      r = rgb[0] * 255;
-      g = rgb[1] * 255;
-      b = rgb[2] * 255;
-      a = startStop.alpha * 255;
-    } else if (t < startStop.stop) {
-      const rgb = hexToRGB(startStop.hex);
-      r = rgb[0] * 255;
-      g = rgb[1] * 255;
-      b = rgb[2] * 255;
-      a = startStop.alpha * 255;
-    } else {
-      const localT = (t - startStop.stop) / (endStop.stop - startStop.stop);
-      const startRGB = hexToRGB(startStop.hex);
-      const endRGB = hexToRGB(endStop.hex);
-
-      r = (startRGB[0] + (endRGB[0] - startRGB[0]) * localT) * 255;
-      g = (startRGB[1] + (endRGB[1] - startRGB[1]) * localT) * 255;
-      b = (startRGB[2] + (endRGB[2] - startRGB[2]) * localT) * 255;
-      a = (startStop.alpha + (endStop.alpha - startStop.alpha) * localT) * 255;
-    }
-
-    data[i * 4] = r;
-    data[i * 4 + 1] = g;
-    data[i * 4 + 2] = b;
-    data[i * 4 + 3] = a;
+  if (!ctx) {
+    throw new Error('Failed to get 2D context');
   }
 
-  return data;
+  const gradient = ctx.createLinearGradient(0, 0, width, 0);
+  stops.forEach(s => {
+    const [r, g, b] = hexToRGB(s.hex);
+    gradient.addColorStop(s.stop, `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${s.alpha})`);
+  });
+
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, 1);
+
+  return new Uint8Array(ctx.getImageData(0, 0, width, 1).data);
 }
