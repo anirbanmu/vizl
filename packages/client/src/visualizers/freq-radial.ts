@@ -7,7 +7,7 @@ const MIN_RADIUS_SCALE = 0.15;
 const MAX_RADIUS_SCALE = 0.5; // controls how much the base radius expands with intensity
 const BAR_STACK_HEIGHT_SCALE = 0.35; // height of the bar stack relative to screen size
 const STACK_GAP_PERCENTAGE = 0.2; // 20% of each segment is gap (radial)
-const ANGULAR_GAP_PERCENTAGE = 0.1; // 10% of the angular slice is gap
+const ANGULAR_GAP_PERCENTAGE = 0.2; // 20% of the angular slice is gap
 
 export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
   private dataTexture!: WebGLTexture;
@@ -204,7 +204,7 @@ function computeVertexAttributes(
   barCount: number,
 ): { indices: Array<number>; angles: Array<number>; vertexCount: number } {
   const angularIncrement = (-2 * Math.PI) / divisions;
-  const angleOffset = angularIncrement * gapPercent;
+  const angleOffset = (angularIncrement * gapPercent) / 2;
 
   const indices = [],
     angles = [];
