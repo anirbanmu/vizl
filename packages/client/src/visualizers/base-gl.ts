@@ -16,7 +16,7 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
 
     const gl = canvas.getContext('webgl2', {
       alpha: true,
-      antialias: false,
+      antialias: true,
       depth: false,
       premultipliedAlpha: true,
     });

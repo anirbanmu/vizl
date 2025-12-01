@@ -1,29 +1,38 @@
 import type { AudioAnalysisData, AudioAnalysisMetadata } from '../audio/types';
 import { BaseAudioVisualiserGL } from './base-gl';
-import { type Vector2d, hexToRGB } from './base';
+import { hexToRGB } from './base';
 
-const FREQUENCY_BAR_DIVS = 28;
-const MIN_RADIUS_SCALE = 0.15;
-const MAX_RADIUS_SCALE = 0.5; // controls how much the base radius expands with intensity
-const BAR_STACK_HEIGHT_SCALE = 0.35; // height of the bar stack relative to screen size
-const STACK_GAP_PERCENTAGE = 0.2; // 20% of each segment is gap (radial)
-const ANGULAR_GAP_PERCENTAGE = 0.2; // 20% of the angular slice is gap
+const FREQUENCY_BAR_DIVS = 32;
+const MIN_RADIUS_SCALE = 0.2;
+const MAX_RADIUS_SCALE = 0.5;
+const BAR_STACK_HEIGHT_SCALE = 0.4;
+const STACK_GAP_PERCENTAGE = 0.15; // gap between radial segments
+const ANGULAR_GAP_PERCENTAGE = 0.15; // gap between angular bars
 
 export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
   private dataTexture!: WebGLTexture;
   private gradientTexture!: WebGLTexture;
   private program!: WebGLProgram;
-  private vertCount = 0;
   private barDivs = FREQUENCY_BAR_DIVS;
-  private lineWidths!: Vector2d;
+  private radialOffsets!: Float32Array;
 
   constructor(canvas: HTMLCanvasElement, metadata: AudioAnalysisMetadata) {
     super(canvas, {
       ...metadata,
-      frequencyBinCount: 4 * Math.trunc((0.7 * metadata.frequencyBinCount) / 4), // shader expects this to divisible by 4
+      // use 70% of the spectrum
+      frequencyBinCount: 4 * Math.trunc((0.7 * metadata.frequencyBinCount) / 4),
     });
 
-    this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE);
+    // pre-calculate radial offsets for the power curve to optimize vertex shader performance
+    this.radialOffsets = new Float32Array(this.barDivs + 1);
+    const power = 0.6;
+    const invPower = 1.0 / power;
+    for (let i = 0; i <= this.barDivs; i++) {
+      this.radialOffsets[i] = Math.pow(i / this.barDivs, invPower);
+    }
+
+    // blend mode for smooth edges with MSAA
+    this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
     this.gl.enable(this.gl.BLEND);
 
     this.prepShaders();
@@ -31,6 +40,9 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
   }
 
   protected renderFrame(data: AudioAnalysisData): void {
+    // update frequency data texture
+    this.gl.activeTexture(this.gl.TEXTURE0);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.dataTexture);
     this.gl.texSubImage2D(
       this.gl.TEXTURE_2D,
       0,
@@ -46,41 +58,39 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
     const scalingDim = this.minDim() / 2;
     const freqIntensityFactor = computeIntensityFactor(data.frequencyData);
 
-    // calculate base radius based on audio intensity ("breathing" effect)
+    // calculate base radius with breathing effect
     const baseRadius = scalingDim * (MIN_RADIUS_SCALE + freqIntensityFactor * (MAX_RADIUS_SCALE - MIN_RADIUS_SCALE));
+
+    this.gl.useProgram(this.program);
 
     const baseRadiusLoc = this.getUniformLocation(this.program, 'baseRadius');
     this.gl.uniform1f(baseRadiusLoc, baseRadius);
 
-    this.gl.drawArrays(this.gl.TRIANGLES, 0, this.vertCount);
+    // draw instanced quads - one instance per bar
+    // vertices per instance = 6 * segments per bar
+    const verticesPerInstance = 6 * this.barDivs;
+    this.gl.drawArraysInstanced(this.gl.TRIANGLES, 0, verticesPerInstance, this.frequencyBinCount);
   }
 
   protected onResize(): void {
-    const dimensionsLoc = this.getUniformLocation(this.program, 'dimensions');
-    this.gl.uniform2fv(dimensionsLoc, new Float32Array([this.gl.drawingBufferWidth, this.gl.drawingBufferHeight]));
+    // pass inverse dimensions for faster aspect correction in shader (multiplication vs division)
+    const uAspectScaleLoc = this.getUniformLocation(this.program, 'uAspectScale');
+    this.gl.uniform2fv(
+      uAspectScaleLoc,
+      new Float32Array([2.0 / this.gl.drawingBufferWidth, 2.0 / this.gl.drawingBufferHeight]),
+    );
 
     const scalingDim = this.minDim() / 2;
-
-    // calculate geometric constants
-    // we model the "bar stack" as a series of segments, where each segment contains a bar and a gap.
-    // the segments grow quadratically in size.
     const totalStackHeight = scalingDim * BAR_STACK_HEIGHT_SCALE;
 
-    // heuristic: start with a small segment height (approx half of the average)
-    const startSegmentHeight = (totalStackHeight / this.barDivs) * 0.5;
-
-    // solve for the quadratic curve C(i) = A*i + B*i^2
-    // such that C(0) = 0, C(1) = startHeight, C(N) = totalHeight
-    const { A, B } = solveGrowth(totalStackHeight, startSegmentHeight, this.barDivs);
-
-    const uCumulativePolyLoc = this.getUniformLocation(this.program, 'uCumulativePoly');
-    this.gl.uniform2f(uCumulativePolyLoc, A, B);
+    const uMaxRadiusLoc = this.getUniformLocation(this.program, 'uMaxRadius');
+    this.gl.uniform1f(uMaxRadiusLoc, totalStackHeight);
 
     const uStackGapPercentageLoc = this.getUniformLocation(this.program, 'uStackGapPercentage');
     this.gl.uniform1f(uStackGapPercentageLoc, STACK_GAP_PERCENTAGE);
 
-    const uMaxRadiusLoc = this.getUniformLocation(this.program, 'uMaxRadius');
-    this.gl.uniform1f(uMaxRadiusLoc, totalStackHeight);
+    const uAngularGapPercentageLoc = this.getUniformLocation(this.program, 'uAngularGapPercentage');
+    this.gl.uniform1f(uAngularGapPercentageLoc, ANGULAR_GAP_PERCENTAGE);
   }
 
   private prepShaders(): void {
@@ -91,39 +101,23 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
       { hex: 0xff2d00, alpha: 1.0, stop: 1.0 },
     ];
 
-    const vertexSource = this.templateShader(aspectCorrectingVertShader, {
+    const vertexSource = this.templateShader(geometryVertShader, {
       FREQUENCY_BARS: this.frequencyBinCount,
       FREQUENCY_BAR_DIVS: this.barDivs,
     });
 
-    const fragmentSource = this.templateShader(freqBarsFragShader, {
-      FREQUENCY_BAR_DIVS: this.barDivs,
-    });
+    const fragmentSource = geometryFragShader;
 
     this.program = this.createProgram(vertexSource, fragmentSource);
     this.gl.useProgram(this.program);
 
-    const vertProperties = computeVertexAttributes(this.frequencyBinCount, ANGULAR_GAP_PERCENTAGE, this.barDivs);
+    // pass pre-calculated radial offsets
+    const uRadialOffsetsLoc = this.getUniformLocation(this.program, 'uRadialOffsets');
+    this.gl.uniform1fv(uRadialOffsetsLoc, this.radialOffsets);
 
-    const indexLoc = this.getAttributeLocation(this.program, 'index');
-    const indexBuffer = this.createBuffer(new Float32Array(vertProperties.indices), this.gl.STATIC_DRAW);
-    this.setupAttribute(indexLoc, 3, indexBuffer);
-
-    const barAnglesLoc = this.getAttributeLocation(this.program, 'barAngles');
-    const barAnglesBuffer = this.createBuffer(new Float32Array(vertProperties.angles), this.gl.STATIC_DRAW);
-    this.setupAttribute(barAnglesLoc, 2, barAnglesBuffer);
-
-    this.vertCount = vertProperties.vertexCount;
-
-    // create and bind gradient texture
+    // gradient texture
     const gradientData = createGradientTexture(gradientStops, 256);
-    const gradientTexture = this.gl.createTexture();
-    if (!gradientTexture) {
-      throw new Error('failed to create gradient texture');
-    }
-    this.gradientTexture = gradientTexture;
-
-    // use texture unit 1 for the gradient
+    this.gradientTexture = this.gl.createTexture()!;
     this.gl.activeTexture(this.gl.TEXTURE1);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.gradientTexture);
     this.gl.texImage2D(
@@ -143,16 +137,10 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
 
     const colorGradientLoc = this.getUniformLocation(this.program, 'colorGradient');
-    this.gl.uniform1i(colorGradientLoc, 1); // Tell shader to use texture unit 1
+    this.gl.uniform1i(colorGradientLoc, 1);
 
-    const magnitudesLoc = this.getUniformLocation(this.program, 'magnitudes');
-    this.gl.uniform1i(magnitudesLoc, 0);
-
-    const texture = this.gl.createTexture();
-    if (!texture) {
-      throw new Error('failed to create texture');
-    }
-    this.dataTexture = texture;
+    // data texture
+    this.dataTexture = this.gl.createTexture()!;
     this.gl.activeTexture(this.gl.TEXTURE0);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.dataTexture);
     this.gl.texImage2D(
@@ -170,195 +158,146 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+
+    const magnitudesLoc = this.getUniformLocation(this.program, 'magnitudes');
+    this.gl.uniform1i(magnitudesLoc, 0);
   }
 }
 
 function computeIntensityFactor(frequencyData: Float32Array): number {
   let rMultiplier = 0;
-  // we only use the lower quarter of the frequency spectrum for the intensity calculation
-  // as it contains the most energy (bass/mids)
   for (let i = 0; i < frequencyData.length / 4; i++) {
     rMultiplier += frequencyData[i];
   }
   return rMultiplier / (frequencyData.length / 4);
 }
 
-/**
- * solves for the quadratic coefficients A and B for a cumulative growth function:
- * C(i) = A*i + B*i^2
- *
- * constraints:
- * 1. C(0) = 0 (Implicit)
- * 2. C(1) = startSize (The size of the first item)
- * 3. C(count) = totalSize (The cumulative size of all items)
- */
-function solveGrowth(totalSize: number, startSize: number, count: number): { A: number; B: number } {
-  const B = (totalSize - count * startSize) / (count * (count - 1));
-  const A = startSize - B;
-  return { A, B };
-}
-
-function computeVertexAttributes(
-  divisions: number,
-  gapPercent: number,
-  barCount: number,
-): { indices: Array<number>; angles: Array<number>; vertexCount: number } {
-  const angularIncrement = (-2 * Math.PI) / divisions;
-  const angleOffset = (angularIncrement * gapPercent) / 2;
-
-  const indices = [],
-    angles = [];
-  for (let i = 0; i < divisions; i++) {
-    for (let j = 0; j < barCount; j++) {
-      // 6 vertices per quad (2 triangles)
-      for (let k = 0; k < 6; k++) {
-        indices.push(i, j, k);
-        angles.push(angularIncrement * i + angleOffset, angularIncrement * (i + 1) - angleOffset);
-      }
-    }
-  }
-
-  return { indices, angles, vertexCount: angles.length / 2 };
-}
-
-const aspectCorrectingVertShader = `#version 300 es
+const geometryVertShader = `#version 300 es
     precision highp float;
 
-    in vec3 index; // x: poly-index, y: bar-index, z: vertex-index
-    in vec2 barAngles; // angles of this bar. (start, end)
+    // geometry generation algorithm:
+    // we generate individual trapezoids for each segment of each bar directly in the vertex shader.
+    //
+    // 1. we use instanced rendering where each instance is a full bar.
+    // 2. we draw 6 vertices (2 triangles) for every segment in the bar.
+    // 3. gl_VertexID is used to determine which segment (quadIndex) and which corner (vertexInQuad) we are processing.
+    // 4. we calculate the precise polar coordinates (radius, angle) for that corner.
+    // 5. gaps are applied by shrinking the geometry logic.
+    // 6. the GPU's native MSAA handles the anti-aliasing of the resulting edges.
 
-    uniform vec2 dimensions;
-    uniform vec2 uCumulativePoly; // x: A, y: B for C(i) = A*i + B*i^2
-    uniform float uStackGapPercentage;
+    uniform vec2 uAspectScale; // [2.0/width, 2.0/height]
     uniform float baseRadius;
+    uniform float uMaxRadius;
+    uniform float uStackGapPercentage;
+    uniform float uAngularGapPercentage;
+    uniform float uRadialOffsets[FREQUENCY_BAR_DIVS + 1]; // pre-calculated power curve
     uniform sampler2D magnitudes;
+    uniform sampler2D colorGradient;
 
-    out float normalizedMagnitude;
-    out vec2 angles;
-    out vec2 radii;
-    out float divIndex;
+    // constants
+    const float PI = 3.14159265359;
+    const float TWO_PI = 6.28318530718;
+
+    out vec4 vColor;
 
     float getMagnitude(int index) {
         return texelFetch(magnitudes, ivec2(index, 0), 0).r;
     }
 
-    vec4 generateTriangleVertex(int idx, vec2 angleSpan, vec2 radiiSpan, vec2 aspect) {
-        vec2 sortedAngles = vec2(max(angleSpan.x, angleSpan.y), min(angleSpan.x, angleSpan.y));
-        
-        bool useEndAngle = (idx >= 1 && idx <= 3);
-        bool useOuterRadius = (idx >= 2 && idx <= 4);
-
-        float angle = useEndAngle ? sortedAngles.y : sortedAngles.x;
-        float radius = useOuterRadius ? radiiSpan.y : radiiSpan.x;
-
-        return vec4(cos(angle) * radius * aspect.x, sin(angle) * radius * aspect.y, 0.0, 1.0);
-    }
-
-    float getCumulativeHeight(float i) {
-        return uCumulativePoly.x * i + uCumulativePoly.y * i * i;
-    }
-
     void main() {
-        angles = barAngles;
-        normalizedMagnitude = getMagnitude(int(index.x));
+        int barIndex = gl_InstanceID;
+        int totalBars = FREQUENCY_BARS;
+        int totalSegments = FREQUENCY_BAR_DIVS;
 
-        float i = index.y;
+        // calculate which segment and vertex we are processing
+        int quadIndex = gl_VertexID / 6;
+        int vertexInQuad = gl_VertexID % 6;
+        int segmentIndex = quadIndex;
 
-        // calculate the start of this segment and the next segment
-        float startRadius = baseRadius + getCumulativeHeight(i);
-        float nextRadius = baseRadius + getCumulativeHeight(i + 1.0);
+        // get magnitude for this bar
+        float magnitude = getMagnitude(barIndex);
+        float activeSegments = magnitude * float(totalSegments);
 
-        // the segment height is the difference
-        float segmentHeight = nextRadius - startRadius;
-
-        // the bar occupies the first (1.0 - gap) portion of the segment
-        float barHeight = segmentHeight * (1.0 - uStackGapPercentage);
-
-        radii = vec2(startRadius, startRadius + barHeight);
-
-        divIndex = index.y;
-
-        float minDim = min(dimensions.x, dimensions.y);
-        gl_Position = generateTriangleVertex(int(index.z), angles, radii / (minDim / 2.0), vec2(minDim / dimensions.x, minDim / dimensions.y));
-    }
-`;
-
-const freqBarsFragShader = `#version 300 es
-    precision highp float;
-
-    uniform vec2 dimensions;
-    uniform float baseRadius;
-    uniform float uMaxRadius;
-
-    uniform sampler2D colorGradient;
-
-    in float normalizedMagnitude;
-    in vec2 angles;
-    in vec2 radii;
-    in float divIndex;
-
-    out vec4 fragColor;
-
-    vec4 getColor(float radius, vec2 bounds) {
-        float rangeRelativeRadius = radius - bounds.x;
-        float rangeRadius = bounds.y - bounds.x;
-        float normalized = clamp(rangeRelativeRadius / rangeRadius, 0.0, 1.0);
-
-        // sample the gradient texture at the normalized position.
-        // we use 0.5 for the y-coordinate to sample the center of the 1D texture.
-        return texture(colorGradient, vec2(normalized, 0.5));
-    }
-
-    const float pi = 3.141592653589793;
-
-    float getAngle(vec2 position) {
-        float angle = atan(position.y, position.x);
-        if (angle > 0.0) {
-            angle -= 2.0 * pi;
-        }
-        return angle;
-    }
-
-    vec4 applyRadialEdgeTransparency(vec4 color, float radius, vec2 edgeRadii) {
-        const float allowedDelta = 0.15;
-        float delta = min(radius - edgeRadii.x, edgeRadii.y - radius) / (edgeRadii.y - edgeRadii.x);
-        if (delta < allowedDelta) {
-            return vec4(color.rgb, color.a * (delta / allowedDelta));
-        }
-        return color;
-    }
-
-    vec4 applyBarEdgeTransparency(vec4 color, vec2 position, vec2 angleBounds) {
-        float angle = getAngle(position);
-
-        const float allowedDelta = 0.10;
-        float delta = min(abs(angleBounds.x - angle), abs(angleBounds.y - angle)) / abs(angleBounds.y - angleBounds.x);
-        if (delta < allowedDelta) {
-            return vec4(color.rgb, color.a * (delta / allowedDelta));
-        }
-        return color;
-    }
-
-    void main() {
-        vec2 center = dimensions * 0.5;
-        vec2 pos = gl_FragCoord.xy - center;
-        float radius = length(pos);
-        float rawDivs = normalizedMagnitude * float(FREQUENCY_BAR_DIVS);
-        float partialLastDiv = rawDivs - floor(rawDivs);
-        int lastDivIndex = int(floor(rawDivs));
-
-        float innerRadius = radii.x;
-        float outerRadius = radii.y;
-        int thisDivIndex = int(divIndex);
-        outerRadius = lastDivIndex == thisDivIndex ? innerRadius + partialLastDiv * (outerRadius - innerRadius) : outerRadius;
-        if (thisDivIndex > lastDivIndex || radius < innerRadius || radius > outerRadius) {
-            fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        // discard if segment is inactive
+        // we can't discard in vertex shader, but we can degenerate the triangle
+        if (float(segmentIndex) >= activeSegments) {
+            gl_Position = vec4(0.0);
             return;
         }
 
-        fragColor = getColor(radius, vec2(baseRadius, baseRadius + uMaxRadius));
-        fragColor = applyRadialEdgeTransparency(fragColor, radius, vec2(innerRadius, outerRadius));
-        fragColor = applyBarEdgeTransparency(fragColor, pos, angles);
+        // --- angular logic ---
+        float angleStep = (-2.0 * PI) / float(totalBars);
+        float centerAngle = float(barIndex) * angleStep + (angleStep * 0.5);
+
+        // apply angular gap
+        float angularWidth = abs(angleStep);
+        float gapAngle = angularWidth * uAngularGapPercentage;
+        float usableAngle = angularWidth - gapAngle;
+        float halfAngle = usableAngle * 0.5;
+
+        float angleStart = centerAngle - halfAngle;
+        float angleEnd = centerAngle + halfAngle;
+
+        // --- radial logic ---
+        // use pre-calculated radial offsets
+        float normR_Start = uRadialOffsets[segmentIndex];
+        float normR_End = uRadialOffsets[segmentIndex + 1];
+
+        // apply radial gap
+        // we apply the gap to the normalized radius
+        float segmentLen = normR_End - normR_Start;
+        float gapLen = segmentLen * uStackGapPercentage;
+        normR_End -= gapLen;
+
+        // map to physical radius
+        float rStart = baseRadius + normR_Start * uMaxRadius;
+        float rEnd = baseRadius + normR_End * uMaxRadius;
+
+        // --- vertex positioning ---
+        // quad vertices:
+        // 0: BL, 1: BR, 2: TL
+        // 3: TL, 4: BR, 5: TR
+
+        float r, a;
+
+        if (vertexInQuad == 0) { r = rStart; a = angleStart; } // BL
+        else if (vertexInQuad == 1) { r = rStart; a = angleEnd; }   // BR
+        else if (vertexInQuad == 2) { r = rEnd;   a = angleStart; } // TL
+        else if (vertexInQuad == 3) { r = rEnd;   a = angleStart; } // TL
+        else if (vertexInQuad == 4) { r = rStart; a = angleEnd; }   // BR
+        else if (vertexInQuad == 5) { r = rEnd;   a = angleEnd; }   // TR
+
+        // convert polar to cartesian
+        vec2 pos = vec2(cos(a), sin(a)) * r;
+
+        // aspect correction using multiplication
+        gl_Position = vec4(pos * uAspectScale, 0.0, 1.0);
+
+        // --- color ---
+        // sample gradient based on logical position
+        float gradientPos = (float(segmentIndex) + 0.5) / float(totalSegments);
+        vec4 color = texture(colorGradient, vec2(gradientPos, 0.5));
+
+        // handle partial opacity for the last active segment
+        float alpha = 1.0;
+        if (float(segmentIndex) >= floor(activeSegments)) {
+            float fraction = fract(activeSegments);
+            alpha = fraction;
+            if (fraction < 0.01) alpha = 0.0;
+        }
+
+        vColor = vec4(color.rgb, color.a * alpha);
+    }
+`;
+
+const geometryFragShader = `#version 300 es
+    precision highp float;
+
+    in vec4 vColor;
+    out vec4 fragColor;
+
+    void main() {
+        fragColor = vColor;
     }
 `;
 
@@ -370,19 +309,13 @@ interface GradientStop {
 
 function createGradientTexture(stops: GradientStop[], width: number): Uint8Array {
   const data = new Uint8Array(width * 4);
-
-  // sort stops by position just in case
   const sortedStops = [...stops].sort((a, b) => a.stop - b.stop);
-
-  // ensure we have stops at 0.0 and 1.0 if not present, or handle logic to clamp
-  // the logic below assumes we interpolate between available stops.
 
   let currentStopIndex = 0;
 
   for (let i = 0; i < width; i++) {
     const t = i / (width - 1);
 
-    // find the two stops we are between
     while (currentStopIndex < sortedStops.length - 1 && t > sortedStops[currentStopIndex + 1].stop) {
       currentStopIndex++;
     }
@@ -393,21 +326,18 @@ function createGradientTexture(stops: GradientStop[], width: number): Uint8Array
     let r, g, b, a;
 
     if (!endStop) {
-      // we are past the last stop
       const rgb = hexToRGB(startStop.hex);
       r = rgb[0] * 255;
       g = rgb[1] * 255;
       b = rgb[2] * 255;
       a = startStop.alpha * 255;
     } else if (t < startStop.stop) {
-      // we are before the first stop (shouldn't happen if 0.0 is first, but good for safety)
       const rgb = hexToRGB(startStop.hex);
       r = rgb[0] * 255;
       g = rgb[1] * 255;
       b = rgb[2] * 255;
       a = startStop.alpha * 255;
     } else {
-      // interpolate
       const localT = (t - startStop.stop) / (endStop.stop - startStop.stop);
       const startRGB = hexToRGB(startStop.hex);
       const endRGB = hexToRGB(endStop.hex);

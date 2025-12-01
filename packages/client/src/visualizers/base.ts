@@ -31,12 +31,16 @@ export abstract class BaseAudioVisualiser {
   abstract render(data: AudioAnalysisData): void;
 
   resize(width: number = 0, height: number = 0): void {
-    const newWidth = width || this.canvas.clientWidth;
-    const newHeight = height || this.canvas.clientHeight;
+    const pixelRatio = window.devicePixelRatio || 1;
+    const displayWidth = width || this.canvas.clientWidth;
+    const displayHeight = height || this.canvas.clientHeight;
 
-    if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
-      this.canvas.width = newWidth;
-      this.canvas.height = newHeight;
+    const needWidth = Math.floor(displayWidth * pixelRatio);
+    const needHeight = Math.floor(displayHeight * pixelRatio);
+
+    if (this.canvas.width !== needWidth || this.canvas.height !== needHeight) {
+      this.canvas.width = needWidth;
+      this.canvas.height = needHeight;
     }
   }
 
