@@ -1,5 +1,11 @@
 import type { AudioAnalysisData, AudioAnalysisMetadata } from '../audio/types';
-import { BaseAudioVisualiser, type Vector2d } from './base';
+import { BaseAudioVisualiser, type Vector2d, hexToRGB } from './base';
+
+export interface GradientStop {
+  hex: number;
+  alpha: number;
+  stop: number;
+}
 
 class WebGLInitializationException extends Error {
   constructor(error: string) {
@@ -134,5 +140,27 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffer);
     this.gl.enableVertexAttribArray(location);
     this.gl.vertexAttribPointer(location, size, this.gl.FLOAT, false, 0, 0);
+  }
+
+  protected createGradientTexture(stops: GradientStop[], width: number): Uint8Array {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      throw new WebGLInitializationException('Failed to get 2D context');
+    }
+
+    const gradient = ctx.createLinearGradient(0, 0, width, 0);
+    stops.forEach(s => {
+      const [r, g, b] = hexToRGB(s.hex);
+      gradient.addColorStop(s.stop, `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${s.alpha})`);
+    });
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, 1);
+
+    return new Uint8Array(ctx.getImageData(0, 0, width, 1).data);
   }
 }

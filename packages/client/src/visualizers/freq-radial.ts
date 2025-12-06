@@ -1,6 +1,5 @@
 import type { AudioAnalysisData, AudioAnalysisMetadata } from '../audio/types';
 import { BaseAudioVisualiserGL } from './base-gl';
-import { hexToRGB } from './base';
 
 const FREQUENCY_BAR_DIVS = 32;
 const MIN_RADIUS_SCALE = 0.2;
@@ -8,6 +7,10 @@ const MAX_RADIUS_SCALE = 0.5;
 const BAR_STACK_HEIGHT_SCALE = 0.4;
 const STACK_GAP_PERCENTAGE = 0.15; // gap between radial segments
 const ANGULAR_GAP_PERCENTAGE = 0.15; // gap between angular bars
+
+const SPECTRUM_USAGE = 0.7; // use 70% of the spectrum
+const BASS_REGION_PERCENTAGE = 0.25; // check first 25% for bass intensity
+const POWER_CURVE_EXPONENT = 0.6; // power curve for radial distribution
 
 export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
   private dataTexture!: WebGLTexture;
@@ -20,13 +23,12 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
     super(canvas, {
       ...metadata,
       // use 70% of the spectrum
-      frequencyBinCount: 4 * Math.trunc((0.7 * metadata.frequencyBinCount) / 4),
+      frequencyBinCount: 4 * Math.trunc((SPECTRUM_USAGE * metadata.frequencyBinCount) / 4),
     });
 
     // pre-calculate radial offsets for the power curve to optimize vertex shader performance
     this.radialOffsets = new Float32Array(this.barDivs + 1);
-    const power = 0.6;
-    const invPower = 1.0 / power;
+    const invPower = 1.0 / POWER_CURVE_EXPONENT;
     for (let i = 0; i <= this.barDivs; i++) {
       this.radialOffsets[i] = Math.pow(i / this.barDivs, invPower);
     }
@@ -55,8 +57,12 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
       data.frequencyData,
     );
 
+    // ensure gradient texture is bound
+    this.gl.activeTexture(this.gl.TEXTURE1);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.gradientTexture);
+
     const scalingDim = this.minDim() / 2;
-    const freqIntensityFactor = computeIntensityFactor(data.frequencyData);
+    const freqIntensityFactor = this.computeBassIntensity(data.frequencyData);
 
     // calculate base radius with breathing effect
     const baseRadius = scalingDim * (MIN_RADIUS_SCALE + freqIntensityFactor * (MAX_RADIUS_SCALE - MIN_RADIUS_SCALE));
@@ -89,8 +95,15 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
     const uStackGapPercentageLoc = this.getUniformLocation(this.program, 'uStackGapPercentage');
     this.gl.uniform1f(uStackGapPercentageLoc, STACK_GAP_PERCENTAGE);
 
-    const uAngularGapPercentageLoc = this.getUniformLocation(this.program, 'uAngularGapPercentage');
-    this.gl.uniform1f(uAngularGapPercentageLoc, ANGULAR_GAP_PERCENTAGE);
+    // pre-calculate angular logic
+    const angleStep = (-2.0 * Math.PI) / this.frequencyBinCount;
+    const angularWidth = Math.abs(angleStep);
+    const gapAngle = angularWidth * ANGULAR_GAP_PERCENTAGE;
+    const usableAngle = angularWidth - gapAngle;
+    const halfAngle = usableAngle * 0.5;
+
+    const uHalfAngleLoc = this.getUniformLocation(this.program, 'uHalfAngle');
+    this.gl.uniform1f(uHalfAngleLoc, halfAngle);
   }
 
   private prepShaders(): void {
@@ -116,7 +129,7 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
     this.gl.uniform1fv(uRadialOffsetsLoc, this.radialOffsets);
 
     // gradient texture
-    const gradientData = createGradientTexture(gradientStops, 256);
+    const gradientData = this.createGradientTexture(gradientStops, 256);
     this.gradientTexture = this.gl.createTexture()!;
     this.gl.activeTexture(this.gl.TEXTURE1);
     this.gl.bindTexture(this.gl.TEXTURE_2D, this.gradientTexture);
@@ -162,14 +175,16 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
     const magnitudesLoc = this.getUniformLocation(this.program, 'magnitudes');
     this.gl.uniform1i(magnitudesLoc, 0);
   }
-}
 
-function computeIntensityFactor(frequencyData: Float32Array): number {
-  let rMultiplier = 0;
-  for (let i = 0; i < frequencyData.length / 4; i++) {
-    rMultiplier += frequencyData[i];
+  private computeBassIntensity(frequencyData: Float32Array): number {
+    let rMultiplier = 0;
+    // check the bass region for intensity
+    const bassBins = Math.floor(frequencyData.length * BASS_REGION_PERCENTAGE);
+    for (let i = 0; i < bassBins; i++) {
+      rMultiplier += frequencyData[i];
+    }
+    return rMultiplier / bassBins;
   }
-  return rMultiplier / (frequencyData.length / 4);
 }
 
 const geometryVertShader = `#version 300 es
@@ -189,7 +204,7 @@ const geometryVertShader = `#version 300 es
     uniform float baseRadius;
     uniform float uMaxRadius;
     uniform float uStackGapPercentage;
-    uniform float uAngularGapPercentage;
+    uniform float uHalfAngle; // pre-calculated half angle width
     uniform float uRadialOffsets[FREQUENCY_BAR_DIVS + 1]; // pre-calculated power curve
     uniform sampler2D magnitudes;
     uniform sampler2D colorGradient;
@@ -229,14 +244,8 @@ const geometryVertShader = `#version 300 es
         float angleStep = (-2.0 * PI) / float(totalBars);
         float centerAngle = float(barIndex) * angleStep + (angleStep * 0.5);
 
-        // apply angular gap
-        float angularWidth = abs(angleStep);
-        float gapAngle = angularWidth * uAngularGapPercentage;
-        float usableAngle = angularWidth - gapAngle;
-        float halfAngle = usableAngle * 0.5;
-
-        float angleStart = centerAngle - halfAngle;
-        float angleEnd = centerAngle + halfAngle;
+        float angleStart = centerAngle - uHalfAngle;
+        float angleEnd = centerAngle + uHalfAngle;
 
         // --- radial logic ---
         // use pre-calculated radial offsets
@@ -300,31 +309,3 @@ const geometryFragShader = `#version 300 es
         fragColor = vColor;
     }
 `;
-
-interface GradientStop {
-  hex: number;
-  alpha: number;
-  stop: number;
-}
-
-function createGradientTexture(stops: GradientStop[], width: number): Uint8Array {
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = 1;
-  const ctx = canvas.getContext('2d');
-
-  if (!ctx) {
-    throw new Error('Failed to get 2D context');
-  }
-
-  const gradient = ctx.createLinearGradient(0, 0, width, 0);
-  stops.forEach(s => {
-    const [r, g, b] = hexToRGB(s.hex);
-    gradient.addColorStop(s.stop, `rgba(${r * 255}, ${g * 255}, ${b * 255}, ${s.alpha})`);
-  });
-
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, 1);
-
-  return new Uint8Array(ctx.getImageData(0, 0, width, 1).data);
-}
