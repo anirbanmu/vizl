@@ -112,11 +112,25 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
     return location;
   }
 
+  private uniformCache = new WeakMap<WebGLProgram, Map<string, WebGLUniformLocation>>();
+
   protected getUniformLocation(program: WebGLProgram, name: string): WebGLUniformLocation {
+    let programCache = this.uniformCache.get(program);
+    if (!programCache) {
+      programCache = new Map();
+      this.uniformCache.set(program, programCache);
+    }
+
+    if (programCache.has(name)) {
+      return programCache.get(name)!;
+    }
+
     const location = this.gl.getUniformLocation(program, name);
     if (!location) {
       throw new WebGLInitializationException(`uniform '${name}' not found in program`);
     }
+
+    programCache.set(name, location);
     return location;
   }
 

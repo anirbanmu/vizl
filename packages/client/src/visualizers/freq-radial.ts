@@ -43,8 +43,7 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
 
   protected renderFrame(data: AudioAnalysisData): void {
     // update frequency data texture
-    this.gl.activeTexture(this.gl.TEXTURE0);
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.dataTexture);
+    // texture unit 0 is always active and bound
     this.gl.texSubImage2D(
       this.gl.TEXTURE_2D,
       0,
@@ -57,17 +56,11 @@ export class FrequencyRadialVisualiser extends BaseAudioVisualiserGL {
       data.frequencyData,
     );
 
-    // ensure gradient texture is bound
-    this.gl.activeTexture(this.gl.TEXTURE1);
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.gradientTexture);
-
     const scalingDim = this.minDim() / 2;
     const freqIntensityFactor = this.computeBassIntensity(data.frequencyData);
 
     // calculate base radius with breathing effect
     const baseRadius = scalingDim * (MIN_RADIUS_SCALE + freqIntensityFactor * (MAX_RADIUS_SCALE - MIN_RADIUS_SCALE));
-
-    this.gl.useProgram(this.program);
 
     const baseRadiusLoc = this.getUniformLocation(this.program, 'baseRadius');
     this.gl.uniform1f(baseRadiusLoc, baseRadius);
