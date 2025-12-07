@@ -20,8 +20,7 @@ export class FrequencyBackgroundVisualiser extends BaseAudioVisualiserGL {
   }
 
   protected renderFrame(data: AudioAnalysisData): void {
-    this.gl.activeTexture(this.gl.TEXTURE0);
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.dataTexture);
+    // texture 0 is already bound to dataTexture from init
     this.gl.texSubImage2D(
       this.gl.TEXTURE_2D,
       0,

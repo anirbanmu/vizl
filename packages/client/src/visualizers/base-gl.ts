@@ -7,12 +7,7 @@ export interface GradientStop {
   stop: number;
 }
 
-class WebGLInitializationException extends Error {
-  constructor(error: string) {
-    super(error);
-    Object.setPrototypeOf(this, WebGLInitializationException.prototype);
-  }
-}
+
 
 export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
   protected gl: WebGL2RenderingContext;
@@ -27,7 +22,7 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
       premultipliedAlpha: true,
     });
     if (!gl) {
-      throw new WebGLInitializationException('webgl 2 not supported');
+      throw new Error('webgl 2 not supported');
     }
 
     this.gl = gl;
@@ -64,7 +59,7 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
   protected compileShader(shaderType: number, source: string): WebGLShader {
     const shader = this.gl.createShader(shaderType);
     if (!shader) {
-      throw new WebGLInitializationException('failed to create shader');
+      throw new Error('failed to create shader');
     }
 
     this.gl.shaderSource(shader, source);
@@ -73,7 +68,7 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
     if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
       const log = this.gl.getShaderInfoLog(shader);
       this.gl.deleteShader(shader);
-      throw new WebGLInitializationException(`shader compilation failed:\n${log}`);
+      throw new Error(`shader compilation failed:\n${log}`);
     }
 
     return shader;
@@ -85,7 +80,7 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
 
     const program = this.gl.createProgram();
     if (!program) {
-      throw new WebGLInitializationException('failed to create program');
+      throw new Error('failed to create program');
     }
 
     this.gl.attachShader(program, vertexShader);
@@ -95,7 +90,7 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
     if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
       const log = this.gl.getProgramInfoLog(program);
       this.gl.deleteProgram(program);
-      throw new WebGLInitializationException(`program linking failed:\n${log}`);
+      throw new Error(`program linking failed:\n${log}`);
     }
 
     this.gl.deleteShader(vertexShader);
@@ -107,7 +102,7 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
   protected getAttributeLocation(program: WebGLProgram, name: string): number {
     const location = this.gl.getAttribLocation(program, name);
     if (location === -1) {
-      throw new WebGLInitializationException(`attribute '${name}' not found in program`);
+      throw new Error(`attribute '${name}' not found in program`);
     }
     return location;
   }
@@ -127,7 +122,7 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
 
     const location = this.gl.getUniformLocation(program, name);
     if (!location) {
-      throw new WebGLInitializationException(`uniform '${name}' not found in program`);
+      throw new Error(`uniform '${name}' not found in program`);
     }
 
     programCache.set(name, location);
@@ -141,7 +136,7 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
   protected createBuffer(data: Float32Array, usage: number): WebGLBuffer {
     const buffer = this.gl.createBuffer();
     if (!buffer) {
-      throw new WebGLInitializationException('failed to create buffer');
+      throw new Error('failed to create buffer');
     }
 
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffer);
@@ -163,7 +158,7 @@ export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
     const ctx = canvas.getContext('2d');
 
     if (!ctx) {
-      throw new WebGLInitializationException('Failed to get 2D context');
+      throw new Error('Failed to get 2D context');
     }
 
     const gradient = ctx.createLinearGradient(0, 0, width, 0);

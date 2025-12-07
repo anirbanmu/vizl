@@ -3,12 +3,7 @@ import { BaseAudioVisualiserGL } from './base-gl';
 
 const BASE_RADIUS = 0.2;
 const MAGNITUDE_SCALE_FACTOR = 0.5;
-const WAVEFORM_COLOR = {
-  r: 0.905,
-  g: 0.298,
-  b: 0.235,
-  a: 0.5,
-};
+const WAVEFORM_COLOR = new Float32Array([0.905, 0.298, 0.235, 0.5]);
 
 export class TimeRadialVisualiser extends BaseAudioVisualiserGL {
   private dataTexture!: WebGLTexture;
@@ -103,7 +98,7 @@ void main() {
     this.gl.uniform1f(baseRadiusLoc, baseRadius);
     this.gl.uniform1f(magnitudeScaleLoc, magnitudeScale);
     this.gl.uniform1f(angularIncrementLoc, angularIncrement);
-    this.gl.uniform4f(colorLoc, WAVEFORM_COLOR.r, WAVEFORM_COLOR.g, WAVEFORM_COLOR.b, WAVEFORM_COLOR.a);
+    this.gl.uniform4fv(colorLoc, WAVEFORM_COLOR);
     this.gl.uniform1i(magnitudesLoc, 0);
 
     return texture;
