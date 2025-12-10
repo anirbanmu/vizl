@@ -15,6 +15,33 @@ import {
   type SoundcloudClientInterface,
 } from './soundcloud.js';
 
+// map of time windows -> map of IPs -> request count
+const rateLimitWindows = new Map<number, Map<string, number>>();
+
+function isRateLimited(ip: string): boolean {
+  const windowKey = Math.floor(Date.now() / (15 * 60 * 1000));
+
+  let currentWindow = rateLimitWindows.get(windowKey);
+  if (!currentWindow) {
+    currentWindow = new Map();
+    rateLimitWindows.set(windowKey, currentWindow);
+  }
+
+  const count = currentWindow.get(ip) || 0;
+  if (count >= 100) return true;
+
+  currentWindow.set(ip, count + 1);
+
+  // cleanup old windows (keep only current and previous)
+  for (const [key] of rateLimitWindows) {
+    if (key < windowKey - 1) {
+      rateLimitWindows.delete(key);
+    }
+  }
+
+  return false;
+}
+
 interface ServerConfig {
   readonly port: number;
   readonly soundcloudClientId?: string;
@@ -104,6 +131,21 @@ if (config.nodeEnv === 'development') {
     }),
   );
 }
+
+app.use('/api/*', async (c, next) => {
+  const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
+
+  if (isRateLimited(ip)) {
+    return c.json(
+      {
+        message: 'Too many requests from this IP, please try again after 15 minutes.',
+      },
+      429,
+    );
+  }
+
+  await next();
+});
 
 app.use('/api/*', async (c, next) => {
   if (c.req.method === 'POST') {
