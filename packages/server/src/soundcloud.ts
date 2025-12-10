@@ -1,6 +1,6 @@
 import { Cache } from './utils/cache.js';
 import { Limiter } from './utils/limiter.js';
-import type { Track } from '../../common/track';
+import type { Track } from '@vizl/common/track.js';
 
 const SOUNDCLOUD_API_BASE_URL = 'https://api.soundcloud.com';
 const SOUNDCLOUD_OAUTH_TOKEN_URL = `${SOUNDCLOUD_API_BASE_URL}/oauth2/token`;
