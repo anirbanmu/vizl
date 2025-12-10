@@ -7,8 +7,6 @@ export interface GradientStop {
   stop: number;
 }
 
-
-
 export abstract class BaseAudioVisualiserGL extends BaseAudioVisualiser {
   protected gl: WebGL2RenderingContext;
 

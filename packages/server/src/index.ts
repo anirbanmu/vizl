@@ -2,8 +2,10 @@ import { Hono, type Context } from 'hono';
 import { serve } from '@hono/node-server';
 import { cors } from 'hono/cors';
 import { compress } from 'hono/compress';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { secureHeaders } from 'hono/secure-headers';
-import type { Track } from '../../common/track';
+import path from 'path';
+import type { Track } from '@vizl/common/track.js';
 import { Cache } from './utils/cache.js';
 import { initializeLogger, getLogger } from './logger.js';
 import {
@@ -17,6 +19,7 @@ interface ServerConfig {
   readonly port: number;
   readonly soundcloudClientId?: string;
   readonly soundcloudClientSecret?: string;
+  readonly clientDistPath: string;
   readonly nodeEnv: 'development' | 'production' | 'test';
 }
 
@@ -28,6 +31,7 @@ const config: ServerConfig = {
   port: Number(process.env.PORT) || 8081,
   soundcloudClientId: process.env.SOUNDCLOUD_CLIENT_ID,
   soundcloudClientSecret: process.env.SOUNDCLOUD_CLIENT_SECRET,
+  clientDistPath: process.env.CLIENT_DIST_PATH || path.resolve(process.cwd(), '../client/dist'),
   nodeEnv: (process.env.NODE_ENV as ServerConfig['nodeEnv']) || 'development',
 };
 
@@ -178,6 +182,7 @@ async function startServer(): Promise<void> {
   logger.app('='.repeat(50));
   logger.app(`port: ${config.port}`);
   logger.app(`environment: ${config.nodeEnv}`);
+  logger.app(`client dist: ${config.clientDistPath}`);
   logger.app(`node version: ${process.version}`);
   logger.app(`platform: ${process.platform}`);
 
@@ -196,6 +201,21 @@ async function startServer(): Promise<void> {
   );
 
   app.post('/api/resolve', createResolveHandler(client));
+
+  app.use(
+    '/*',
+    serveStatic({
+      root: config.clientDistPath,
+      index: 'index.html',
+    }),
+  );
+
+  app.get(
+    '*',
+    serveStatic({
+      path: path.join(config.clientDistPath, 'index.html'),
+    }),
+  );
 
   logger.app('='.repeat(50));
 
