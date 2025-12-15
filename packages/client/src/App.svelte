@@ -1,11 +1,23 @@
 <script lang="ts">
-  import { AUDIO_CONFIG } from './audio/types';
   import { FrequencyBackgroundVisualiser } from './visualizers/freq-background';
   import { FrequencyRadialVisualiser } from './visualizers/freq-radial';
   import { TimeRadialVisualiser } from './visualizers/time-radial';
-  import type { AudioAnalysisMetadata } from './audio/types';
-  import { TestAudioGenerator, type TestAudioType } from './audio/test-generator';
+  import type { AudioSource, AudioConfig } from './audio/types';
+  import { TestToneSource } from './audio/test-tone-source';
+  import { AudioAnalyser } from './audio/analyser';
+  import type { TestAudioType } from './audio/test-generator';
   import { onMount } from 'svelte';
+
+  const AUDIO_CONFIG: AudioConfig = {
+    frequency: {
+      fftSize: 256,
+      smoothingTimeConstant: 0.89,
+    },
+    time: {
+      fftSize: 4096,
+      smoothingTimeConstant: 0,
+    },
+  };
 
   let freqCanvas = $state<HTMLCanvasElement>();
   let freqRadialCanvas = $state<HTMLCanvasElement>();
@@ -15,27 +27,19 @@
   let timeVisualizer: TimeRadialVisualiser | null = null;
   let webglError = $state<string | null>(null);
   let audioContext: AudioContext | null = null;
-  let testAudioGenerator: TestAudioGenerator | null = null;
-  let frequencyAnalyser: AnalyserNode | null = null;
-  let timeAnalyser: AnalyserNode | null = null;
+  let audioSource: AudioSource | null = null;
+  let audioAnalyser: AudioAnalyser | null = null;
   let isTestAudioPlaying = $state(false);
   let currentTestAudioType = $state<TestAudioType>('sine');
 
   function setupAudioContext(): void {
     audioContext = new AudioContext();
-    testAudioGenerator = new TestAudioGenerator(audioContext);
 
-    frequencyAnalyser = audioContext.createAnalyser();
-    frequencyAnalyser.fftSize = AUDIO_CONFIG.frequency.fftSize;
-    frequencyAnalyser.smoothingTimeConstant = AUDIO_CONFIG.frequency.smoothingTimeConstant;
+    audioAnalyser = new AudioAnalyser(audioContext, AUDIO_CONFIG);
 
-    timeAnalyser = audioContext.createAnalyser();
-    timeAnalyser.fftSize = AUDIO_CONFIG.time.fftSize;
-    timeAnalyser.smoothingTimeConstant = AUDIO_CONFIG.time.smoothingTimeConstant;
-
-    const gainNode = testAudioGenerator.getGainNode();
-    gainNode.connect(frequencyAnalyser);
-    gainNode.connect(timeAnalyser);
+    // default to TestToneSource for now
+    audioSource = new TestToneSource(audioContext);
+    audioSource.connect(audioAnalyser.node);
   }
 
   function toggleTestAudio(): void {
@@ -48,18 +52,21 @@
     }
 
     if (isTestAudioPlaying) {
-      testAudioGenerator?.stop();
+      audioSource?.stop();
       isTestAudioPlaying = false;
     } else {
-      testAudioGenerator?.start({ type: currentTestAudioType });
+      if (audioSource instanceof TestToneSource) {
+        audioSource.setMode({ type: currentTestAudioType });
+      }
+      audioSource?.play();
       isTestAudioPlaying = true;
     }
   }
 
   function changeTestAudioType(type: TestAudioType): void {
     currentTestAudioType = type;
-    if (isTestAudioPlaying && testAudioGenerator) {
-      testAudioGenerator.start({ type });
+    if (isTestAudioPlaying && audioSource instanceof TestToneSource) {
+      audioSource.setMode({ type });
     }
   }
 
@@ -68,12 +75,7 @@
 
     setupAudioContext();
 
-    const metadata: AudioAnalysisMetadata = {
-      minDb: frequencyAnalyser!.minDecibels,
-      maxDb: frequencyAnalyser!.maxDecibels,
-      frequencyBinCount: frequencyAnalyser!.frequencyBinCount,
-      timeFftSize: timeAnalyser!.fftSize,
-    };
+    const metadata = audioAnalyser!.metadata();
 
     try {
       freqVisualizer = new FrequencyBackgroundVisualiser(freqCanvas, metadata);
@@ -89,24 +91,15 @@
       return;
     }
 
-    const frequencyData = new Float32Array(metadata.frequencyBinCount);
-    const frequencyDataNormalized = new Float32Array(metadata.frequencyBinCount);
-    const timeData = new Float32Array(metadata.timeFftSize);
-    const dbRange = metadata.maxDb - metadata.minDb;
-
     function animate(): void {
-      if (!freqVisualizer || !freqRadialVisualizer || !timeVisualizer || !frequencyAnalyser || !timeAnalyser) return;
+      if (!freqVisualizer || !freqRadialVisualizer || !timeVisualizer || !audioAnalyser) return;
 
-      frequencyAnalyser.getFloatFrequencyData(frequencyData);
-      timeAnalyser.getFloatTimeDomainData(timeData);
+      const frequencyData = audioAnalyser.getFrequencyDataNormalized();
+      const timeData = audioAnalyser.getTimeData();
 
-      for (let i = 0; i < frequencyData.length; i++) {
-        frequencyDataNormalized[i] = Math.max(0, Math.min(1, (frequencyData[i] - metadata.minDb) / dbRange));
-      }
-
-      freqVisualizer.render({ frequencyData: frequencyDataNormalized, timeData });
-      freqRadialVisualizer.render({ frequencyData: frequencyDataNormalized, timeData });
-      timeVisualizer.render({ frequencyData: frequencyDataNormalized, timeData });
+      freqVisualizer.render({ frequencyData: frequencyData, timeData });
+      freqRadialVisualizer.render({ frequencyData: frequencyData, timeData });
+      timeVisualizer.render({ frequencyData: frequencyData, timeData });
       requestAnimationFrame(animate);
     }
 
@@ -128,8 +121,8 @@
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      if (testAudioGenerator) {
-        testAudioGenerator.stop();
+      if (audioSource) {
+        audioSource.stop();
       }
       freqVisualizer = null;
       freqRadialVisualizer = null;

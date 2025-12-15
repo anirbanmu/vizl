@@ -1,15 +1,13 @@
-export const AUDIO_CONFIG = {
+export interface AudioConfig {
   frequency: {
-    fftSize: 256,
-    smoothingTimeConstant: 0.89,
-  },
+    fftSize: number;
+    smoothingTimeConstant: number;
+  };
   time: {
-    fftSize: 4096,
-    smoothingTimeConstant: 0,
-  },
-} as const;
-
-export type AudioConfig = typeof AUDIO_CONFIG;
+    fftSize: number;
+    smoothingTimeConstant: number;
+  };
+}
 
 export interface AudioAnalysisData {
   frequencyData: Float32Array;
@@ -21,4 +19,12 @@ export interface AudioAnalysisMetadata {
   maxDb: number;
   frequencyBinCount: number;
   timeFftSize: number;
+}
+
+export interface AudioSource {
+  connect(destination: AudioNode): void;
+  disconnect(): void;
+  play(): Promise<void> | void;
+  pause(): void;
+  stop(): void;
 }
