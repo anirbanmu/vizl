@@ -3,7 +3,7 @@
   import { FrequencyRadialVisualiser } from '../visualizers/freq-radial';
   import { TimeRadialVisualiser } from '../visualizers/time-radial';
   import type { AudioAnalyser } from '../audio/analyser';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
 
   interface Props {
     analyser: AudioAnalyser;
@@ -12,6 +12,7 @@
 
   let { analyser, showDebugBorder = false }: Props = $props();
 
+  let container = $state<HTMLElement>();
   let freqCanvas = $state<HTMLCanvasElement>();
   let freqRadialCanvas = $state<HTMLCanvasElement>();
   let timeCanvas = $state<HTMLCanvasElement>();
@@ -21,13 +22,19 @@
   let timeVisualizer!: TimeRadialVisualiser;
   let webglError = $state<string | null>(null);
   let animationFrameId: number | null = null;
+  let resizeObserver: ResizeObserver | null = null;
 
   const renderData = { frequencyData: new Float32Array(0), timeData: new Float32Array(0) };
 
-  export function resize(): void {
+  function resizeVisualizers(): void {
     freqVisualizer.resize();
     freqRadialVisualizer.resize();
     timeVisualizer.resize();
+
+    // Force immediate re-render to avoid flickering/blackouts during resize
+    freqVisualizer.render(renderData);
+    freqRadialVisualizer.render(renderData);
+    timeVisualizer.render(renderData);
   }
 
   function animate(): void {
@@ -59,18 +66,24 @@
     }
 
     animate();
-    window.addEventListener('resize', resize);
 
-    return () => {
-      window.removeEventListener('resize', resize);
-      if (animationFrameId !== null) {
-        cancelAnimationFrame(animationFrameId);
-      }
-    };
+    if (container) {
+      resizeObserver = new ResizeObserver(() => {
+        resizeVisualizers();
+      });
+      resizeObserver.observe(container);
+    }
+  });
+
+  onDestroy(() => {
+    resizeObserver?.disconnect();
+    if (animationFrameId !== null) {
+      cancelAnimationFrame(animationFrameId);
+    }
   });
 </script>
 
-<div class="visualizer-stack" class:debug={showDebugBorder}>
+<div class="visualizer-stack" class:debug={showDebugBorder} bind:this={container}>
   {#if webglError}
     <p class="error">{webglError}</p>
   {:else}
