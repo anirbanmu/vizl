@@ -3,10 +3,12 @@
   import PlayerControls from './components/PlayerControls.svelte';
   import TrackInput from './components/TrackInput.svelte';
   import DebugPanel from './components/DebugPanel.svelte';
-  import type { AudioConfig } from './audio/types';
+  import type { AudioConfig, AudioSource } from './audio/types';
   import { TestToneSource } from './audio/test-tone-source';
+  import { SoundCloudSource } from './audio/soundcloud-source';
   import { AudioAnalyser } from './audio/analyser';
   import type { TestAudioType } from './audio/test-generator';
+  import type { Track } from '@common/track';
   import { onMount } from 'svelte';
 
   const AUDIO_CONFIG: AudioConfig = {
@@ -22,36 +24,101 @@
 
   const audioContext = new AudioContext();
   const audioAnalyser = new AudioAnalyser(audioContext, AUDIO_CONFIG);
-  const audioSource = new TestToneSource(audioContext);
-  audioSource.connect(audioAnalyser.node);
+
+  // Connect analyser to output so we can hear it
+  audioAnalyser.node.connect(audioContext.destination);
+
+  const testToneSource = new TestToneSource(audioContext);
+  const soundCloudSource = new SoundCloudSource(audioContext);
+
+  // Default to test tone initially, but switch based on user action
+  let currentSource = $state<AudioSource>(testToneSource);
+
+  testToneSource.connect(audioAnalyser.node);
+  soundCloudSource.connect(audioAnalyser.node);
 
   let isPlaying = $state(false);
   let currentTestAudioType = $state<TestAudioType>('sine');
   let isDebugVisible = $state(false);
 
-  function handlePlay(): void {
+  let currentTrack = $state<Track | null>(null);
+  let isLoading = $state(false);
+  let error = $state<string | null>(null);
+
+  function switchSource(source: AudioSource) {
+    if (currentSource === source) return;
+
+    currentSource.stop();
+    currentSource = source;
+  }
+
+  async function handlePlay(): Promise<void> {
     if (audioContext.state === 'suspended') {
-      audioContext.resume();
+      await audioContext.resume();
     }
-    audioSource.setMode({ type: currentTestAudioType });
-    isPlaying = true;
+
+    if (currentSource instanceof TestToneSource) {
+      currentSource.setMode({ type: currentTestAudioType });
+    }
+
+    try {
+      await currentSource.play();
+      isPlaying = true;
+    } catch (err) {
+      console.error('Playback failed:', err);
+      error = 'Playback failed';
+    }
   }
 
   function handleStop(): void {
-    audioSource.stop();
+    currentSource.stop();
     isPlaying = false;
   }
 
   function handleTestTypeChange(type: TestAudioType): void {
     currentTestAudioType = type;
+
+    // Implicitly switch to test source when changing test type
+    switchSource(testToneSource);
+
     if (isPlaying) {
-      audioSource.setMode({ type });
+      testToneSource.setMode({ type });
+    }
+  }
+
+  async function resolveTrack(url: string): Promise<void> {
+    isLoading = true;
+    error = null;
+
+    try {
+      const res = await fetch('/api/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || 'Failed to resolve track');
+      }
+
+      const track: Track = await res.json();
+      currentTrack = track;
+
+      // Load audio, switch source, and play
+      await soundCloudSource.load(track.streamUrl);
+      switchSource(soundCloudSource);
+      await handlePlay();
+    } catch (err) {
+      console.error('Track resolution failed:', err);
+      error = err instanceof Error ? err.message : 'Failed to load track';
+    } finally {
+      isLoading = false;
     }
   }
 
   function handleTrackSubmit(url: string): void {
-    console.log('Track URL submitted:', url);
-    // TODO: Implement SoundCloud resolution in Phase 3
+    resolveTrack(url);
   }
 
   onMount(() => {
@@ -65,7 +132,8 @@
 
     return () => {
       window.removeEventListener('keydown', handleKeydown);
-      audioSource.stop();
+      testToneSource.stop();
+      soundCloudSource.stop();
     };
   });
 </script>
@@ -78,6 +146,16 @@
   <div class="ui-grid">
     <div class="header-area">
       <h1>VIZL <span class="version">v2.0</span></h1>
+      {#if currentTrack}
+        <div class="track-info">
+          <span class="track-artist">{currentTrack.user.name}</span>
+          <span class="track-separator">//</span>
+          <span class="track-title">{currentTrack.title}</span>
+        </div>
+      {/if}
+      {#if error}
+        <div class="error-message">[{error}]</div>
+      {/if}
     </div>
 
     <div class="viewport-area"></div>
@@ -87,7 +165,14 @@
         <PlayerControls {isPlaying} onplay={handlePlay} onstop={handleStop} />
       </div>
       <div class="input-cell">
-        <TrackInput onsubmit={handleTrackSubmit} />
+        <TrackInput
+          onsubmit={handleTrackSubmit}
+          disabled={isLoading}
+          placeholder={isLoading ? 'resolving stream...' : undefined}
+        />
+      </div>
+      <div class="attribution-cell">
+        <img src="/powered_by_soundcloud.png" alt="Powered by SoundCloud" class="sc-logo" />
       </div>
     </div>
   </div>
@@ -157,6 +242,32 @@
     margin-left: var(--spacing-xs);
   }
 
+  .track-info {
+    margin-left: var(--spacing-xl);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--color-fg);
+    opacity: 0.8;
+  }
+
+  .track-artist {
+    color: var(--color-muted);
+  }
+
+  .track-separator {
+    color: var(--color-accent);
+  }
+
+  .error-message {
+    margin-left: auto;
+    color: var(--color-accent);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+  }
+
   .viewport-area {
     grid-row: 2;
   }
@@ -164,7 +275,7 @@
   .controls-dock {
     grid-row: 3;
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto 1fr auto;
     border-top: var(--border-default);
     background: var(--color-bg);
     pointer-events: all;
@@ -182,5 +293,18 @@
     padding: 0 var(--spacing-lg);
     display: flex;
     align-items: center;
+  }
+
+  .attribution-cell {
+    padding: 0 var(--spacing-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-left: var(--border-default);
+  }
+
+  .sc-logo {
+    height: 32px; /* Adjust as needed */
+    opacity: 0.7;
   }
 </style>

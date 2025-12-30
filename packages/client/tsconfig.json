@@ -6,7 +6,8 @@
     "strict": true,
     "noEmit": true,
     "paths": {
-      "@vizl/common/*": ["../common/*"]
+      "@vizl/common/*": ["../common/*"],
+      "@common/*": ["../common/*"]
     }
   },
   "include": ["src/**/*", "../common/**/*"]
