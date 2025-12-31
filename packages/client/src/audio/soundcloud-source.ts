@@ -12,6 +12,26 @@ export class SoundCloudSource implements AudioSource {
     this.sourceNode = audioCtx.createMediaElementSource(this.audio);
   }
 
+  get currentTime(): number {
+    return this.audio.currentTime;
+  }
+
+  get duration(): number {
+    return this.audio.duration;
+  }
+
+  seek(time: number): void {
+    if (isFinite(time)) {
+      this.audio.currentTime = time;
+    }
+  }
+
+  setOnTimeUpdate(callback: (time: number) => void): void {
+    this.audio.ontimeupdate = () => {
+      callback(this.audio.currentTime);
+    };
+  }
+
   connect(destination: AudioNode): void {
     this.sourceNode.connect(destination);
   }

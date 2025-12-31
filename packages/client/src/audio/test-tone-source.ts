@@ -8,6 +8,24 @@ export class TestToneSource implements AudioSource {
     this.generator = new TestAudioGenerator(audioCtx);
   }
 
+  get currentTime(): number {
+    return 0;
+  }
+
+  get duration(): number {
+    return 0;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  seek(_time: number): void {
+    // no-op for test tones
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  setOnTimeUpdate(_callback: (time: number) => void): void {
+    // no-op
+  }
+
   connect(destination: AudioNode): void {
     this.generator.getGainNode().connect(destination);
   }

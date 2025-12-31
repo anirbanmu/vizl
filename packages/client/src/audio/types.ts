@@ -27,4 +27,8 @@ export interface AudioSource {
   play(): Promise<void> | void;
   pause(): void;
   stop(): void;
+  seek(time: number): void;
+  get currentTime(): number;
+  get duration(): number;
+  setOnTimeUpdate(callback: (time: number) => void): void;
 }

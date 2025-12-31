@@ -17,7 +17,7 @@
     <div class="header">DEBUG / TEST TONES</div>
     <div class="grid">
       {#each types as type (type)}
-        <button class:active={activeType === type} onclick={() => onchange(type)}>
+        <button class="wireframe-btn debug-btn" class:active={activeType === type} onclick={() => onchange(type)}>
           {type}
         </button>
       {/each}
@@ -53,24 +53,22 @@
     gap: var(--spacing-xs);
   }
 
-  button {
-    background: transparent;
+  .debug-btn {
     border: var(--border-muted);
     color: var(--color-muted);
     padding: var(--spacing-xs) var(--spacing-sm);
-    font-family: var(--font-mono);
     font-size: 0.75rem;
     text-align: left;
-    cursor: pointer;
-    text-transform: uppercase;
+    justify-content: flex-start;
+    width: 100%;
   }
 
-  button:hover {
+  .debug-btn:hover {
     border-color: var(--color-fg);
     color: var(--color-fg);
   }
 
-  button.active {
+  .debug-btn.active {
     background: var(--color-accent);
     color: var(--color-bg);
     border-color: var(--color-accent);

@@ -3,6 +3,7 @@
   import PlayerControls from './components/PlayerControls.svelte';
   import TrackInput from './components/TrackInput.svelte';
   import DebugPanel from './components/DebugPanel.svelte';
+  import SeekBar from './components/SeekBar.svelte';
   import type { AudioConfig, AudioSource } from './audio/types';
   import { TestToneSource } from './audio/test-tone-source';
   import { SoundCloudSource } from './audio/soundcloud-source';
@@ -45,11 +46,34 @@
   let isLoading = $state(false);
   let error = $state<string | null>(null);
 
+  let currentTime = $state(0);
+  let duration = $state(0);
+
   function switchSource(source: AudioSource) {
     if (currentSource === source) return;
 
     currentSource.stop();
+    // Clear old time update
+    currentSource.setOnTimeUpdate(() => {});
+
     currentSource = source;
+
+    // Reset state
+    currentTime = source.currentTime;
+    duration = source.duration;
+
+    // Attach new listener
+    currentSource.setOnTimeUpdate(t => {
+      currentTime = t;
+      duration = source.duration; // Update duration in case it changes
+    });
+  }
+
+  function handleSeek(time: number) {
+    if (currentSource) {
+      currentSource.seek(time);
+      currentTime = time;
+    }
   }
 
   async function handlePlay(): Promise<void> {
@@ -71,7 +95,7 @@
   }
 
   function handleStop(): void {
-    currentSource.stop();
+    currentSource.pause();
     isPlaying = false;
   }
 
@@ -161,6 +185,14 @@
     <div class="viewport-area"></div>
 
     <div class="controls-dock">
+      <div class="seek-bar-row">
+        <SeekBar
+          {currentTime}
+          {duration}
+          onseek={handleSeek}
+          disabled={!(currentSource instanceof SoundCloudSource && currentTrack)}
+        />
+      </div>
       <div class="controls-cell">
         <PlayerControls {isPlaying} onplay={handlePlay} onstop={handleStop} />
       </div>
@@ -210,7 +242,7 @@
     height: 100%;
     z-index: 10;
     display: grid;
-    grid-template-rows: 60px 1fr 80px;
+    grid-template-rows: 60px 1fr auto;
     grid-template-columns: 1fr;
     pointer-events: none; /* Let clicks pass through to visualizer layer by default */
   }
@@ -275,10 +307,12 @@
   .controls-dock {
     grid-row: 3;
     display: grid;
+    grid-template-rows: auto 1fr;
     grid-template-columns: auto 1fr auto;
-    border-top: var(--border-default);
+    border-top: none;
     background: var(--color-bg);
     pointer-events: all;
+    padding-bottom: 10px;
   }
 
   .controls-cell {
@@ -306,5 +340,13 @@
   .sc-logo {
     height: 32px; /* Adjust as needed */
     opacity: 0.7;
+  }
+
+  .seek-bar-row {
+    grid-column: 1 / -1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    border-bottom: none;
   }
 </style>

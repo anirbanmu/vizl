@@ -22,10 +22,17 @@
 </script>
 
 <div class="track-input-container">
-  <input type="text" class="track-input" bind:value {placeholder} {disabled} onkeydown={handleKeydown} />
+  <input
+    type="text"
+    class="wireframe-input track-input-override"
+    bind:value
+    {placeholder}
+    {disabled}
+    onkeydown={handleKeydown}
+  />
   <button
     type="button"
-    class="submit-btn"
+    class="wireframe-btn submit-btn-override"
     onclick={handleSubmit}
     disabled={disabled || !value.trim()}
     aria-label="Load track"
@@ -42,57 +49,14 @@
     max-width: 500px;
   }
 
-  .track-input {
+  .track-input-override {
     flex: 1;
-    background: var(--color-bg);
-    color: var(--color-fg);
-    border: var(--border-default);
-    padding: var(--spacing-sm) var(--spacing-md);
-    font-family: var(--font-mono);
-    font-size: 0.875rem;
-    outline: none;
-    transition: none;
   }
 
-  .track-input::placeholder {
-    color: var(--color-muted);
-    text-transform: lowercase;
-  }
-
-  .track-input:focus {
-    background: var(--color-fg);
-    color: var(--color-bg);
-    border-color: var(--color-fg);
-  }
-
-  .track-input:focus::placeholder {
-    color: var(--color-muted);
-  }
-
-  .track-input:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .submit-btn {
-    background: var(--color-bg);
-    color: var(--color-fg);
-    border: var(--border-default);
+  .submit-btn-override {
     border-left: none;
-    padding: var(--spacing-sm) var(--spacing-md);
-    font-family: var(--font-mono);
     font-size: 1rem;
-    cursor: pointer;
-    transition: none;
-  }
-
-  .submit-btn:hover:not(:disabled) {
-    background: var(--color-fg);
-    color: var(--color-bg);
-  }
-
-  .submit-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+    padding-left: var(--spacing-md);
+    padding-right: var(--spacing-md);
   }
 </style>

@@ -56,3 +56,76 @@ body {
   background: var(--color-accent);
   color: var(--color-bg);
 }
+
+/* --- Wireframe Utilities --- */
+
+.wireframe-btn {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  border: var(--border-default);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
+  cursor: pointer;
+  transition: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wireframe-btn:hover:not(:disabled) {
+  background: var(--color-fg);
+  color: var(--color-bg);
+}
+
+.wireframe-btn.active {
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border-color: var(--color-accent);
+}
+
+.wireframe-btn.active:hover:not(:disabled) {
+  background: var(--color-fg);
+  color: var(--color-bg);
+  border-color: var(--color-fg);
+}
+
+.wireframe-input {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  border: var(--border-default);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  outline: none;
+  transition: none;
+}
+
+.wireframe-input::placeholder {
+  color: var(--color-muted);
+  text-transform: lowercase;
+}
+
+.wireframe-input:focus {
+  background: var(--color-fg);
+  color: var(--color-bg);
+  border-color: var(--color-fg);
+}
+
+.wireframe-input:focus::placeholder {
+  color: var(--color-muted);
+}
+
+.wireframe-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.wireframe-btn:disabled,
+.wireframe-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
