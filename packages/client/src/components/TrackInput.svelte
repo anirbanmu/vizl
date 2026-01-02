@@ -4,9 +4,16 @@
     placeholder?: string;
     disabled?: boolean;
     onsubmit?: (url: string) => void;
+    loading?: boolean;
   }
 
-  let { value = $bindable(''), placeholder = 'paste soundcloud url...', disabled = false, onsubmit }: Props = $props();
+  let {
+    value = $bindable(''),
+    placeholder = 'paste soundcloud url...',
+    disabled = false,
+    loading = false,
+    onsubmit,
+  }: Props = $props();
 
   function handleKeydown(event: KeyboardEvent): void {
     if (event.key === 'Enter' && value.trim() && onsubmit) {
@@ -34,10 +41,14 @@
     type="button"
     class="wireframe-btn submit-btn-override"
     onclick={handleSubmit}
-    disabled={disabled || !value.trim()}
+    disabled={disabled || (!value.trim() && !loading)}
     aria-label="Load track"
   >
-    →
+    {#if loading}
+      <span class="spinner">/</span>
+    {:else}
+      →
+    {/if}
   </button>
 </div>
 
@@ -58,5 +69,19 @@
     font-size: 1rem;
     padding-left: var(--spacing-md);
     padding-right: var(--spacing-md);
+  }
+
+  .spinner {
+    display: inline-block;
+    animation: rotate 1s linear infinite;
+  }
+
+  @keyframes rotate {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>

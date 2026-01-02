@@ -45,6 +45,7 @@
   let currentTrack = $state<Track | null>(null);
   let isLoading = $state(false);
   let error = $state<string | null>(null);
+  let trackUrl = $state('');
 
   let currentTime = $state(0);
   let duration = $state(0);
@@ -133,6 +134,7 @@
       await soundCloudSource.load(track.streamUrl);
       switchSource(soundCloudSource);
       await handlePlay();
+      trackUrl = '';
     } catch (err) {
       console.error('Track resolution failed:', err);
       error = err instanceof Error ? err.message : 'Failed to load track';
@@ -198,8 +200,10 @@
       </div>
       <div class="input-cell">
         <TrackInput
+          bind:value={trackUrl}
           onsubmit={handleTrackSubmit}
           disabled={isLoading}
+          loading={isLoading}
           placeholder={isLoading ? 'resolving stream...' : undefined}
         />
       </div>
