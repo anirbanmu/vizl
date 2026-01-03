@@ -171,7 +171,10 @@
 
   <div class="ui-grid">
     <div class="header-area">
-      <h1>VIZL <span class="version">v2.0</span></h1>
+      <h1>
+        <div class="header-logo" role="img" aria-label="VIZL"></div>
+        <span class="version">v2.0</span>
+      </h1>
       {#if currentTrack}
         <div class="track-info">
           <span class="track-artist">{currentTrack.user.name}</span>
@@ -264,18 +267,37 @@
   }
 
   h1 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    letter-spacing: 0.2rem;
-    color: var(--color-fg);
+    display: flex;
+    align-items: center;
     margin: 0;
+  }
+
+  .header-logo {
+    display: inline-block;
+    height: 40px;
+    width: 60px; /* Approximate ratio for "Vizl." stack */
+    background-color: var(--color-accent);
+
+    /* Create the shape using the logo as a mask */
+    -webkit-mask-image: url('/logo.png');
+    -webkit-mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center left;
+    mask-image: url('/logo.png');
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center left;
+
+    /* Add the digital glow */
+    filter: drop-shadow(0 0 4px var(--color-accent));
+    opacity: 0.9;
   }
 
   .version {
     font-size: 0.75rem;
     color: var(--color-accent);
-    vertical-align: super;
-    margin-left: var(--spacing-xs);
+    margin-left: var(--spacing-sm);
+    font-weight: 700;
   }
 
   .track-info {
