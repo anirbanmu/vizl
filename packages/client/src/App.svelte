@@ -211,7 +211,9 @@
         />
       </div>
       <div class="attribution-cell">
-        <img src="/powered_by_soundcloud.png" alt="Powered by SoundCloud" class="sc-logo" />
+        <a href="https://soundcloud.com" target="_blank" rel="noopener noreferrer" class="sc-link">
+          <img src="/powered_by_soundcloud.png" alt="Powered by SoundCloud" class="sc-logo" />
+        </a>
       </div>
     </div>
   </div>
@@ -363,9 +365,19 @@
     border-left: var(--border-default);
   }
 
+  .sc-link {
+    display: flex;
+    align-items: center;
+  }
+
   .sc-logo {
     height: 32px; /* Adjust as needed */
     opacity: 0.7;
+    transition: opacity 0.2s ease;
+  }
+
+  .sc-logo:hover {
+    opacity: 1;
   }
 
   .seek-bar-row {
