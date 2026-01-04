@@ -14,7 +14,7 @@
 
   const AUDIO_CONFIG: AudioConfig = {
     frequency: {
-      fftSize: 256,
+      fftSize: 64,
       smoothingTimeConstant: 0.89,
     },
     time: {
