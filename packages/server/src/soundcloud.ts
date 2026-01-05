@@ -3,7 +3,7 @@ import { Limiter } from './utils/limiter.js';
 import type { Track } from '@vizl/common/track.js';
 
 const SOUNDCLOUD_API_BASE_URL = 'https://api.soundcloud.com';
-const SOUNDCLOUD_OAUTH_TOKEN_URL = `${SOUNDCLOUD_API_BASE_URL}/oauth2/token`;
+const SOUNDCLOUD_OAUTH_TOKEN_URL = 'https://secure.soundcloud.com/oauth/token';
 const SOUNDCLOUD_RESOLVE_URL = `${SOUNDCLOUD_API_BASE_URL}/resolve`;
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -109,14 +109,18 @@ export class SoundcloudClient implements SoundcloudClientInterface {
     clientId: string,
     clientSecret: string,
   ): Promise<SoundcloudClientCredentialsToken> {
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
     const body = new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
       grant_type: 'client_credentials',
     });
 
     const response = await fetch(SOUNDCLOUD_OAUTH_TOKEN_URL, {
       method: 'POST',
+      headers: {
+        Authorization: `Basic ${credentials}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        accept: 'application/json; charset=utf-8',
+      },
       body,
     });
 
