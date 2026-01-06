@@ -26,6 +26,11 @@ export class TestToneSource implements AudioSource {
     // no-op
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  setOnEnded(_callback: () => void): void {
+    // no-op
+  }
+
   connect(destination: AudioNode): void {
     this.generator.getGainNode().connect(destination);
   }

@@ -31,4 +31,5 @@ export interface AudioSource {
   get currentTime(): number;
   get duration(): number;
   setOnTimeUpdate(callback: (time: number) => void): void;
+  setOnEnded(callback: () => void): void;
 }

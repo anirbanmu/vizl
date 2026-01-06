@@ -26,13 +26,13 @@
   const audioContext = new AudioContext();
   const audioAnalyser = new AudioAnalyser(audioContext, AUDIO_CONFIG);
 
-  // Connect analyser to output so we can hear it
+  // connect analyser to output so we can hear it
   audioAnalyser.node.connect(audioContext.destination);
 
   const testToneSource = new TestToneSource(audioContext);
   const soundCloudSource = new SoundCloudSource(audioContext);
 
-  // Default to test tone initially, but switch based on user action
+  // default to test tone initially, but switch based on user action
   let currentSource = $state<AudioSource>(testToneSource);
 
   testToneSource.connect(audioAnalyser.node);
@@ -54,19 +54,26 @@
     if (currentSource === source) return;
 
     currentSource.stop();
-    // Clear old time update
+    // clear old time update and ended listeners
     currentSource.setOnTimeUpdate(() => {});
+    currentSource.setOnEnded(() => {});
 
     currentSource = source;
 
-    // Reset state
+    // reset state
     currentTime = source.currentTime;
     duration = source.duration;
 
-    // Attach new listener
+    // attach new listener
     currentSource.setOnTimeUpdate(t => {
       currentTime = t;
-      duration = source.duration; // Update duration in case it changes
+      duration = source.duration; // update duration in case it changes
+    });
+
+    currentSource.setOnEnded(() => {
+      isPlaying = false;
+      currentTime = 0;
+      currentSource.seek(0);
     });
   }
 
@@ -103,7 +110,7 @@
   function handleTestTypeChange(type: TestAudioType): void {
     currentTestAudioType = type;
 
-    // Implicitly switch to test source when changing test type
+    // implicitly switch to test source when changing test type
     switchSource(testToneSource);
 
     if (isPlaying) {
@@ -130,7 +137,7 @@
       const track: Track = await res.json();
       currentTrack = track;
 
-      // Load audio, switch source, and play
+      // load audio, switch source, and play
       await soundCloudSource.load(track.streamUrl);
       switchSource(soundCloudSource);
       await handlePlay();
@@ -149,7 +156,7 @@
 
   onMount(() => {
     const handleKeydown = (e: KeyboardEvent) => {
-      // Toggle debug panel with Ctrl + ` (Backtick)
+      // toggle debug panel with ctrl + ` (backtick)
       if (e.ctrlKey && e.code === 'Backquote') {
         isDebugVisible = !isDebugVisible;
       }
@@ -253,7 +260,7 @@
     display: grid;
     grid-template-rows: 60px 1fr auto;
     grid-template-columns: 1fr;
-    pointer-events: none; /* Let clicks pass through to visualizer layer by default */
+    pointer-events: none; /* let clicks pass through to visualizer layer by default */
   }
 
   /* Header */
@@ -277,10 +284,10 @@
   .header-logo {
     display: inline-block;
     height: 40px;
-    width: 60px; /* Approximate ratio for "Vizl." stack */
+    width: 60px; /* approximate ratio for "Vizl." stack */
     background-color: var(--color-accent);
 
-    /* Create the shape using the logo as a mask */
+    /* create the shape using the logo as a mask */
     -webkit-mask-image: url('/logo.png');
     -webkit-mask-size: contain;
     -webkit-mask-repeat: no-repeat;
@@ -290,7 +297,7 @@
     mask-repeat: no-repeat;
     mask-position: center left;
 
-    /* Add the digital glow */
+    /* add the digital glow */
     filter: drop-shadow(0 0 4px var(--color-accent));
     opacity: 0.9;
   }
@@ -371,7 +378,7 @@
   }
 
   .sc-logo {
-    height: 32px; /* Adjust as needed */
+    height: 32px; /* adjust as needed */
     opacity: 0.7;
     transition: opacity 0.2s ease;
   }

@@ -32,6 +32,12 @@ export class SoundCloudSource implements AudioSource {
     };
   }
 
+  setOnEnded(callback: () => void): void {
+    this.audio.onended = () => {
+      callback();
+    };
+  }
+
   connect(destination: AudioNode): void {
     this.sourceNode.connect(destination);
   }
