@@ -1,11 +1,15 @@
 import { Cache } from './utils/cache.js';
 import { Limiter } from './utils/limiter.js';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { isDev } from './env.js';
 import type { Track } from '@vizl/common/track.js';
 
 const SOUNDCLOUD_API_BASE_URL = 'https://api.soundcloud.com';
 const SOUNDCLOUD_OAUTH_TOKEN_URL = 'https://secure.soundcloud.com/oauth/token';
 const SOUNDCLOUD_RESOLVE_URL = `${SOUNDCLOUD_API_BASE_URL}/resolve`;
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes
+const TOKEN_CACHE_FILE = path.resolve(process.cwd(), '../../.soundcloud-token.json');
 
 export interface SoundcloudClientInterface {
   resolve(url: string): Promise<Track>;
@@ -133,6 +137,23 @@ export class SoundcloudClient implements SoundcloudClientInterface {
   }
 
   private async ensureAccessToken(): Promise<void> {
+    // try to load from cache if in dev and no token state currently
+    if (isDev && !this.tokenState) {
+      try {
+        const cacheData = await fs.readFile(TOKEN_CACHE_FILE, 'utf-8');
+        const cached: TokenState = JSON.parse(cacheData);
+        // verify it's not expired (or close to expiring)
+        if (Date.now() < cached.expiresAt - TOKEN_REFRESH_BUFFER_MS) {
+          console.log('Using cached SoundCloud access token');
+          this.tokenState = cached;
+          this.internalClient = new SoundcloudClient.InternalClient(this.tokenState.accessToken);
+          return;
+        }
+      } catch {
+        // ignore cache errors (file not found, invalid json, etc)
+      }
+    }
+
     const needsRefresh = !this.tokenState || Date.now() >= this.tokenState.expiresAt - TOKEN_REFRESH_BUFFER_MS;
 
     if (!needsRefresh) {
@@ -149,6 +170,14 @@ export class SoundcloudClient implements SoundcloudClientInterface {
     };
 
     this.internalClient = new SoundcloudClient.InternalClient(this.tokenState.accessToken);
+
+    if (isDev) {
+      try {
+        await fs.writeFile(TOKEN_CACHE_FILE, JSON.stringify(this.tokenState, null, 2));
+      } catch (e) {
+        console.warn('Failed to cache SoundCloud token', e);
+      }
+    }
   }
 
   async resolve(url: string): Promise<Track> {

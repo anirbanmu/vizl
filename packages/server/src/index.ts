@@ -14,6 +14,7 @@ import {
   CachedSoundcloudClient,
   type SoundcloudClientInterface,
 } from './soundcloud.js';
+import { isDev, isProd, nodeEnv } from './env.js';
 
 // map of time windows -> map of IPs -> request count
 const rateLimitWindows = new Map<number, Map<string, number>>();
@@ -47,7 +48,6 @@ interface ServerConfig {
   readonly soundcloudClientId?: string;
   readonly soundcloudClientSecret?: string;
   readonly clientDistPath: string;
-  readonly nodeEnv: 'development' | 'production' | 'test';
 }
 
 type Variables = {
@@ -59,10 +59,9 @@ const config: ServerConfig = {
   soundcloudClientId: process.env.SOUNDCLOUD_CLIENT_ID,
   soundcloudClientSecret: process.env.SOUNDCLOUD_CLIENT_SECRET,
   clientDistPath: process.env.CLIENT_DIST_PATH || path.resolve(process.cwd(), '../client/dist'),
-  nodeEnv: (process.env.NODE_ENV as ServerConfig['nodeEnv']) || 'development',
 };
 
-initializeLogger(config.nodeEnv === 'development');
+initializeLogger(isDev);
 const logger = getLogger();
 
 async function createSoundcloudClient(clientId?: string, clientSecret?: string): Promise<SoundcloudClientInterface> {
@@ -100,7 +99,7 @@ app.use('*', async (c, next) => {
 });
 
 app.use('*', async (c, next) => {
-  if (config.nodeEnv === 'production') {
+  if (isProd) {
     const proto = c.req.header('x-forwarded-proto');
     if (proto === 'http') {
       const host = c.req.header('host');
@@ -122,7 +121,7 @@ app.use(
 
 app.use('*', compress());
 
-if (config.nodeEnv === 'development') {
+if (isDev) {
   app.use(
     '*',
     cors({
@@ -223,7 +222,10 @@ async function startServer(): Promise<void> {
   logger.app('vizl server starting...');
   logger.app('='.repeat(50));
   logger.app(`port: ${config.port}`);
-  logger.app(`environment: ${config.nodeEnv}`);
+  if (isDev) {
+    logger.app(`app: http://localhost:${config.port}`);
+  }
+  logger.app(`environment: ${nodeEnv}`);
   logger.app(`client dist: ${config.clientDistPath}`);
   logger.app(`node version: ${process.version}`);
   logger.app(`platform: ${process.platform}`);
