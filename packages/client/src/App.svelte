@@ -184,9 +184,25 @@
       </h1>
       {#if currentTrack}
         <div class="track-info">
-          <span class="track-artist">{currentTrack.user.name}</span>
+          <a href={currentTrack.user.profile} target="_blank" rel="noopener noreferrer" class="info-link track-artist">
+            {currentTrack.user.name}
+          </a>
           <span class="track-separator">//</span>
-          <span class="track-title">{currentTrack.title}</span>
+          <a href={currentTrack.url} target="_blank" rel="noopener noreferrer" class="info-link track-title">
+            {currentTrack.title}
+          </a>
+          <a
+            href={currentTrack.url || currentTrack.user.profile}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="sc-track-link"
+          >
+            <img
+              src="/logo_white-af5006050dd9cba09b0c48be04feac57.png"
+              alt="Listen on SoundCloud"
+              class="sc-track-logo"
+            />
+          </a>
         </div>
       {/if}
       {#if error}
@@ -219,7 +235,11 @@
       </div>
       <div class="attribution-cell">
         <a href="https://soundcloud.com" target="_blank" rel="noopener noreferrer" class="sc-link">
-          <img src="/powered_by_soundcloud.png" alt="Powered by SoundCloud" class="sc-logo" />
+          <img
+            src="/powered_by_white-371bd6967352fcc89673d4c81f7e5661.png"
+            alt="Powered by SoundCloud"
+            class="sc-logo"
+          />
         </a>
       </div>
     </div>
@@ -317,11 +337,46 @@
     font-family: var(--font-mono);
     font-size: 0.875rem;
     color: var(--color-fg);
-    opacity: 0.8;
   }
 
-  .track-artist {
-    color: var(--color-muted);
+  .sc-track-link {
+    display: flex;
+    align-items: center;
+    margin-left: var(--spacing-sm);
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+  }
+
+  .sc-track-link:hover {
+    opacity: 1;
+  }
+
+  .sc-track-logo {
+    height: 14px;
+    display: block;
+  }
+
+  .info-link {
+    text-decoration: none !important;
+    opacity: 0.8;
+    transition:
+      opacity 0.2s ease,
+      color 0.2s ease;
+  }
+
+  /* Specific Colors */
+  .info-link.track-artist {
+    color: #b3b3b3;
+  }
+
+  .info-link.track-title {
+    color: var(--color-fg);
+  }
+
+  /* Hover State (Must come after specific colors to override without !important) */
+  .info-link:hover {
+    opacity: 1;
+    color: var(--color-fg) !important;
   }
 
   .track-separator {
@@ -378,8 +433,8 @@
   }
 
   .sc-logo {
-    height: 32px; /* adjust as needed */
-    opacity: 0.7;
+    height: 32px;
+    opacity: 0.8;
     transition: opacity 0.2s ease;
   }
 
