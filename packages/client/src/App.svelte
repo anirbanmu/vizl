@@ -208,6 +208,15 @@
       {#if error}
         <div class="error-message">[{error}]</div>
       {/if}
+      <a
+        href="https://github.com/anirbanmu/vizl"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="source-link"
+        aria-label="View Source"
+      >
+        .git
+      </a>
     </div>
 
     <div class="viewport-area"></div>
@@ -384,10 +393,24 @@
   }
 
   .error-message {
-    margin-left: auto;
+    margin-left: var(--spacing-xl);
     color: var(--color-accent);
     font-family: var(--font-mono);
     font-size: 0.875rem;
+  }
+
+  .source-link {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--color-fg);
+    opacity: 0.5;
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .source-link:hover {
+    opacity: 1;
   }
 
   .viewport-area {
@@ -402,7 +425,7 @@
     border-top: none;
     background: var(--color-bg);
     pointer-events: all;
-    padding-bottom: 10px;
+    padding-bottom: var(--spacing-sm);
   }
 
   .controls-cell {
