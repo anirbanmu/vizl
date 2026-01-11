@@ -163,6 +163,17 @@
     };
     window.addEventListener('keydown', handleKeydown);
 
+    const params = new URLSearchParams(window.location.search);
+    const trackParam = params.get('track');
+    if (trackParam) {
+      trackUrl = trackParam;
+      resolveTrack(trackParam);
+
+      // clear the query param so the url is clean
+      const newUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
+      window.history.replaceState({ path: newUrl }, '', newUrl);
+    }
+
     return () => {
       window.removeEventListener('keydown', handleKeydown);
       testToneSource.stop();
