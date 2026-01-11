@@ -1,0 +1,12 @@
+# ignore everything
+*
+
+# explicit includes
+!packages/
+!package-lock.json
+!package.json
+!eslint.config.ts
+
+# common output directories
+*/**/dist/
+*/**/node_modules/
