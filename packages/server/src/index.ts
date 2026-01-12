@@ -13,6 +13,7 @@ import {
   ConcurrencyLimitedSoundcloudClient,
   CachedSoundcloudClient,
   type SoundcloudClientInterface,
+  type SoundcloudTrackResponse,
 } from './soundcloud.js';
 import { isDev, isProd, nodeEnv } from './env.js';
 
@@ -71,7 +72,7 @@ async function createSoundcloudClient(clientId?: string, clientSecret?: string):
 
   const rawClient = await SoundcloudClient.create({ clientId, clientSecret });
   const limitedClient = new ConcurrencyLimitedSoundcloudClient(rawClient, 10);
-  const cache = new Cache<Track | null>(60 * 60 * 1000, 5 * 60 * 1000);
+  const cache = new Cache<SoundcloudTrackResponse | null>(60 * 60 * 1000, 5 * 60 * 1000);
   return new CachedSoundcloudClient(limitedClient, cache);
 }
 

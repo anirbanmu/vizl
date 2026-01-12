@@ -13,6 +13,8 @@ const TOKEN_CACHE_FILE = path.resolve(process.cwd(), '../../.soundcloud-token.js
 
 export interface SoundcloudClientInterface {
   resolve(url: string): Promise<Track>;
+  resolveMetadata(url: string): Promise<SoundcloudTrackResponse>;
+  getStreamUrl(streamUrl: string): Promise<string>;
 }
 
 export interface SoundcloudClientCredentials {
@@ -31,7 +33,7 @@ interface TokenState {
   expiresAt: number;
 }
 
-interface SoundcloudTrackResponse {
+export interface SoundcloudTrackResponse {
   stream_url: string;
   permalink_url: string;
   title: string;
@@ -180,15 +182,29 @@ export class SoundcloudClient implements SoundcloudClientInterface {
     }
   }
 
-  async resolve(url: string): Promise<Track> {
+  async resolveMetadata(url: string): Promise<SoundcloudTrackResponse> {
     await this.ensureAccessToken();
 
     if (!this.internalClient) {
       throw new Error('Internal client not initialized');
     }
 
-    const trackData = await this.internalClient.resolve(url);
-    const streamUrl = await this.internalClient.getStreamUrl(trackData.stream_url);
+    return this.internalClient.resolve(url);
+  }
+
+  async getStreamUrl(streamUrl: string): Promise<string> {
+    await this.ensureAccessToken();
+
+    if (!this.internalClient) {
+      throw new Error('Internal client not initialized');
+    }
+
+    return this.internalClient.getStreamUrl(streamUrl);
+  }
+
+  async resolve(url: string): Promise<Track> {
+    const trackData = await this.resolveMetadata(url);
+    const streamUrl = await this.getStreamUrl(trackData.stream_url);
 
     return {
       streamUrl,
@@ -206,27 +222,52 @@ export class SoundcloudClient implements SoundcloudClientInterface {
 export class CachedSoundcloudClient implements SoundcloudClientInterface {
   constructor(
     private readonly client: SoundcloudClientInterface,
-    private readonly cache: Cache<Track | null> = new Cache<Track | null>(60 * 60 * 1000, 10 * 60 * 1000),
+    private readonly cache: Cache<SoundcloudTrackResponse | null> = new Cache<SoundcloudTrackResponse | null>(
+      60 * 60 * 1000,
+      10 * 60 * 1000,
+    ),
   ) {}
 
-  async resolve(url: string): Promise<Track> {
+  async resolveMetadata(url: string): Promise<SoundcloudTrackResponse> {
     const cached = this.cache.get(url);
 
     if (cached !== undefined) {
       if (cached === null) {
         throw new Error('SoundCloud track resolution failed (cached error)');
       }
+      console.log('cache hit');
       return cached;
     }
 
     try {
-      const result = await this.client.resolve(url);
+      console.log('cache miss');
+      const result = await this.client.resolveMetadata(url);
       this.cache.set(url, result);
       return result;
     } catch (error) {
       this.cache.set(url, null);
       throw error;
     }
+  }
+
+  async getStreamUrl(streamUrl: string): Promise<string> {
+    return this.client.getStreamUrl(streamUrl);
+  }
+
+  async resolve(url: string): Promise<Track> {
+    const trackData = await this.resolveMetadata(url);
+    const streamUrl = await this.getStreamUrl(trackData.stream_url);
+
+    return {
+      streamUrl,
+      url: trackData.permalink_url,
+      title: trackData.title,
+      artwork: trackData.artwork_url,
+      user: {
+        name: trackData.user.username,
+        profile: trackData.user.permalink_url,
+      },
+    };
   }
 }
 
@@ -238,6 +279,14 @@ export class ConcurrencyLimitedSoundcloudClient implements SoundcloudClientInter
     private readonly concurrency: number = 10,
   ) {
     this.limiter = new Limiter(concurrency);
+  }
+
+  async resolveMetadata(url: string): Promise<SoundcloudTrackResponse> {
+    return this.limiter.run(() => this.client.resolveMetadata(url));
+  }
+
+  async getStreamUrl(streamUrl: string): Promise<string> {
+    return this.limiter.run(() => this.client.getStreamUrl(streamUrl));
   }
 
   async resolve(url: string): Promise<Track> {

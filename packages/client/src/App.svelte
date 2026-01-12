@@ -24,6 +24,8 @@
     },
   };
 
+  let autoplayBlocked = $state(false);
+
   const audioContext = new AudioContext();
   const audioAnalyser = new AudioAnalyser(audioContext, AUDIO_CONFIG);
 
@@ -33,8 +35,9 @@
   const testToneSource = new TestToneSource(audioContext);
   const soundCloudSource = new SoundCloudSource(audioContext);
 
-  // default to test tone initially, but switch based on user action
-  let currentSource = $state<AudioSource>(testToneSource);
+  // default to soundCloudSource
+  let currentSource = $state<AudioSource>(soundCloudSource);
+  attachSourceListeners(soundCloudSource);
 
   testToneSource.connect(audioAnalyser.node);
   soundCloudSource.connect(audioAnalyser.node);
@@ -51,11 +54,24 @@
   let currentTime = $state(0);
   let duration = $state(0);
 
+  function attachSourceListeners(source: AudioSource) {
+    source.setOnTimeUpdate(t => {
+      currentTime = t;
+      duration = source.duration;
+    });
+
+    source.setOnEnded(() => {
+      isPlaying = false;
+      currentTime = 0;
+      source.seek(0);
+    });
+  }
+
   function switchSource(source: AudioSource) {
     if (currentSource === source) return;
 
     currentSource.stop();
-    // clear old time update and ended listeners
+    // clear listeners
     currentSource.setOnTimeUpdate(() => {});
     currentSource.setOnEnded(() => {});
 
@@ -65,17 +81,7 @@
     currentTime = source.currentTime;
     duration = source.duration;
 
-    // attach new listener
-    currentSource.setOnTimeUpdate(t => {
-      currentTime = t;
-      duration = source.duration; // update duration in case it changes
-    });
-
-    currentSource.setOnEnded(() => {
-      isPlaying = false;
-      currentTime = 0;
-      currentSource.seek(0);
-    });
+    attachSourceListeners(source);
   }
 
   function handleSeek(time: number) {
@@ -86,15 +92,21 @@
   }
 
   async function handlePlay(): Promise<void> {
-    if (audioContext.state === 'suspended') {
-      await audioContext.resume();
-    }
-
-    if (currentSource instanceof TestToneSource) {
-      currentSource.setMode({ type: currentTestAudioType });
-    }
-
     try {
+      if (audioContext.state === 'suspended') {
+        if (navigator.userActivation && !navigator.userActivation.isActive) {
+          autoplayBlocked = true;
+          return;
+        }
+        await audioContext.resume();
+      }
+
+      autoplayBlocked = false;
+
+      if (currentSource instanceof TestToneSource) {
+        currentSource.setMode({ type: currentTestAudioType });
+      }
+
       await currentSource.play();
       isPlaying = true;
     } catch (err) {
@@ -243,7 +255,13 @@
         />
       </div>
       <div class="controls-cell">
-        <PlayerControls {isPlaying} onplay={handlePlay} onstop={handleStop} />
+        <PlayerControls
+          {isPlaying}
+          {autoplayBlocked}
+          disabled={currentSource instanceof SoundCloudSource && !currentTrack}
+          onplay={handlePlay}
+          onstop={handleStop}
+        />
       </div>
       <div class="input-cell">
         <TrackInput
