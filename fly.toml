@@ -34,32 +34,6 @@ kill_timeout = "5s"
     timeout = "1s"
     path = "/health"
 
-# Static file serving - bypass Express/Hono for assets
 [[statics]]
-  guest_path = "/app/client/assets"
-  url_prefix = "/assets"
-
-# Serve favicons and logos specifically
-[[statics]]
-  guest_path = "/app/client/favicon.ico"
-  url_prefix = "/favicon.ico"
-
-[[statics]]
-  guest_path = "/app/client/favicon-16x16.png"
-  url_prefix = "/favicon-16x16.png"
-
-[[statics]]
-  guest_path = "/app/client/favicon-32x32.png"
-  url_prefix = "/favicon-32x32.png"
-
-[[statics]]
-  guest_path = "/app/client/logo.png"
-  url_prefix = "/logo.png"
-
-[[statics]]
-  guest_path = "/app/client/logo_white-af5006050dd9cba09b0c48be04feac57.png"
-  url_prefix = "/logo_white-af5006050dd9cba09b0c48be04feac57.png"
-
-[[statics]]
-  guest_path = "/app/client/powered_by_white-371bd6967352fcc89673d4c81f7e5661.png"
-  url_prefix = "/powered_by_white-371bd6967352fcc89673d4c81f7e5661.png"
+  guest_path = "/app/client"
+  url_prefix = "/"
