@@ -1,0 +1,65 @@
+app = "vizl"
+primary_region = "sjc"
+kill_signal = "SIGINT"
+kill_timeout = "5s"
+
+[experimental]
+  auto_rollback = true
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_OPTIONS = "--max-old-space-size=180"
+  NODE_ENV = "production"
+  PORT = "3000"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+  [[http_service.checks]]
+    grace_period = "2s"
+    interval = "5s"
+    method = "GET"
+    timeout = "1s"
+    path = "/health"
+
+# Static file serving - bypass Express/Hono for assets
+[[statics]]
+  guest_path = "/app/client/assets"
+  url_prefix = "/assets"
+
+# Serve favicons and logos specifically
+[[statics]]
+  guest_path = "/app/client/favicon.ico"
+  url_prefix = "/favicon.ico"
+
+[[statics]]
+  guest_path = "/app/client/favicon-16x16.png"
+  url_prefix = "/favicon-16x16.png"
+
+[[statics]]
+  guest_path = "/app/client/favicon-32x32.png"
+  url_prefix = "/favicon-32x32.png"
+
+[[statics]]
+  guest_path = "/app/client/logo.png"
+  url_prefix = "/logo.png"
+
+[[statics]]
+  guest_path = "/app/client/logo_white-af5006050dd9cba09b0c48be04feac57.png"
+  url_prefix = "/logo_white-af5006050dd9cba09b0c48be04feac57.png"
+
+[[statics]]
+  guest_path = "/app/client/powered_by_white-371bd6967352fcc89673d4c81f7e5661.png"
+  url_prefix = "/powered_by_white-371bd6967352fcc89673d4c81f7e5661.png"
