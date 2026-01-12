@@ -11,6 +11,7 @@
   import type { TestAudioType } from './audio/test-generator';
   import type { Track } from '@common/track';
   import { onMount } from 'svelte';
+  import logoSrc from './assets/logo.png?inline';
 
   const AUDIO_CONFIG: AudioConfig = {
     frequency: {
@@ -190,7 +191,7 @@
   <div class="ui-grid">
     <div class="header-area">
       <h1>
-        <div class="header-logo" role="img" aria-label="VIZL"></div>
+        <div class="header-logo" role="img" aria-label="VIZL" style="--logo-url: url('{logoSrc}')"></div>
         <span class="version">v2.0</span>
       </h1>
       {#if currentTrack}
@@ -328,11 +329,11 @@
     background-color: var(--color-accent);
 
     /* create the shape using the logo as a mask */
-    -webkit-mask-image: url('/logo.png');
+    -webkit-mask-image: var(--logo-url);
     -webkit-mask-size: contain;
     -webkit-mask-repeat: no-repeat;
     -webkit-mask-position: center left;
-    mask-image: url('/logo.png');
+    mask-image: var(--logo-url);
     mask-size: contain;
     mask-repeat: no-repeat;
     mask-position: center left;
