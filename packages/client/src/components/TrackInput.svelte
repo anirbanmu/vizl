@@ -62,6 +62,7 @@
 
   .track-input-override {
     flex: 1;
+    min-width: 0; /* allow input to shrink below default size */
   }
 
   .submit-btn-override {
