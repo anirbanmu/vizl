@@ -1,9 +1,8 @@
 # vizl
 
-> vizl music visualizer monorepo
+[![checks](https://github.com/anirbanmu/vizl/actions/workflows/checks.yml/badge.svg)](https://github.com/anirbanmu/vizl/actions/workflows/checks.yml)
 
 A WebGL 2 based music visualizer.
-
 
 ## Tech Stack
 
