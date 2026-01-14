@@ -21,8 +21,8 @@
     "tsx": "^4.21.0"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.8",
-    "hono": "^4.11.3",
+    "@hono/node-server": "^1.19.9",
+    "hono": "^4.11.4",
     "ky": "^1.14.2",
     "supports-color": "^10.2.2"
   }
