@@ -17,13 +17,13 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "esbuild": "^0.27.4",
+    "esbuild": "^0.28.0",
     "tsx": "^4.21.0"
   },
   "dependencies": {
-    "@hono/node-server": "^1.19.11",
-    "hono": "^4.12.8",
-    "ky": "^1.14.3",
+    "@hono/node-server": "^1.19.14",
+    "hono": "^4.12.14",
+    "ky": "^2.0.1",
     "supports-color": "^10.2.2"
   }
 }
