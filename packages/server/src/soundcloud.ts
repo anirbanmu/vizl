@@ -97,13 +97,30 @@ export class SoundcloudClient implements SoundcloudClientInterface {
       }
 
       const streams = (await response.json()) as SoundcloudStreamsResponse;
-      const url = streams.hls_aac_160_url ?? streams.hls_aac_96_url;
+      const hlsUrl = streams.hls_aac_160_url ?? streams.hls_aac_96_url;
 
-      if (!url) {
+      if (!hlsUrl) {
         throw new Error('soundcloud streams endpoint returned no hls aac variant');
       }
 
-      return url;
+      // hls_aac_*_url is an authenticated api endpoint that 302-redirects to a signed,
+      // expiring cdn playlist. resolve it server-side so the browser gets a directly
+      // playable url that doesn't require the oauth header.
+      const playlistResponse = await fetch(hlsUrl, {
+        headers: this.headers,
+        redirect: 'manual',
+      });
+
+      if (playlistResponse.status !== 302) {
+        throw new SoundcloudApiError(playlistResponse.status);
+      }
+
+      const playlistUrl = playlistResponse.headers.get('location');
+      if (!playlistUrl) {
+        throw new Error('soundcloud hls stream did not return a redirect location');
+      }
+
+      return playlistUrl;
     }
   };
 
