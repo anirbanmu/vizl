@@ -10,6 +10,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
+    "types": ["node"],
     "paths": {
       "@vizl/common/*": ["../common/*"]
     }
