@@ -8,13 +8,19 @@ import type { Track } from '@vizl/common/track.js';
 const SOUNDCLOUD_API_BASE_URL = 'https://api.soundcloud.com';
 const SOUNDCLOUD_OAUTH_TOKEN_URL = 'https://secure.soundcloud.com/oauth/token';
 const SOUNDCLOUD_RESOLVE_URL = `${SOUNDCLOUD_API_BASE_URL}/resolve`;
+
+function soundcloudStreamsUrl(id: number): string {
+  return `${SOUNDCLOUD_API_BASE_URL}/tracks/${id}/streams`;
+}
+
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes
 const TOKEN_CACHE_FILE = path.resolve(process.cwd(), '../../.soundcloud-token.json');
 
 export interface SoundcloudClientInterface {
   resolve(url: string): Promise<Track>;
   resolveMetadata(url: string): Promise<SoundcloudTrackResponse>;
-  getStreamUrl(streamUrl: string): Promise<string>;
+  getStreams(id: number): Promise<SoundcloudStreamsResponse>;
+  resolvePlaybackUrl(locator: string): Promise<string>;
 }
 
 export interface SoundcloudClientCredentials {
@@ -34,6 +40,7 @@ interface TokenState {
 }
 
 export interface SoundcloudTrackResponse {
+  id: number;
   stream_url: string;
   permalink_url: string;
   title: string;
@@ -42,6 +49,19 @@ export interface SoundcloudTrackResponse {
     username: string;
     permalink_url: string;
   };
+}
+
+export interface SoundcloudStreamsResponse {
+  hls_aac_160_url?: string;
+  hls_aac_96_url?: string;
+}
+
+function selectHlsLocator(streams: SoundcloudStreamsResponse): string {
+  const locator = streams.hls_aac_160_url ?? streams.hls_aac_96_url;
+  if (!locator) {
+    throw new Error('soundcloud streams endpoint returned no hls aac variant');
+  }
+  return locator;
 }
 
 export class SoundcloudApiError extends Error {
@@ -76,22 +96,37 @@ export class SoundcloudClient implements SoundcloudClientInterface {
       return (await response.json()) as SoundcloudTrackResponse;
     }
 
-    async getStreamUrl(streamUrl: string): Promise<string> {
-      const streamResponse = await fetch(streamUrl, {
+    async getStreams(id: number): Promise<SoundcloudStreamsResponse> {
+      const response = await fetch(soundcloudStreamsUrl(id), {
+        headers: this.headers,
+      });
+
+      if (!response.ok) {
+        throw new SoundcloudApiError(response.status);
+      }
+
+      return (await response.json()) as SoundcloudStreamsResponse;
+    }
+
+    async resolvePlaybackUrl(locator: string): Promise<string> {
+      // the hls locator is an authenticated api endpoint that 302-redirects to a signed,
+      // expiring cdn playlist. resolve it server-side so the browser gets a directly
+      // playable url that doesn't require the oauth header.
+      const response = await fetch(locator, {
         headers: this.headers,
         redirect: 'manual',
       });
 
-      if (streamResponse.status !== 302) {
-        throw new SoundcloudApiError(streamResponse.status);
+      if (response.status !== 302) {
+        throw new SoundcloudApiError(response.status);
       }
 
-      const location = streamResponse.headers.get('location');
-      if (!location) {
-        throw new SoundcloudApiError(streamResponse.status);
+      const playbackUrl = response.headers.get('location');
+      if (!playbackUrl) {
+        throw new Error('soundcloud hls stream did not return a redirect location');
       }
 
-      return location;
+      return playbackUrl;
     }
   };
 
@@ -192,19 +227,30 @@ export class SoundcloudClient implements SoundcloudClientInterface {
     return this.internalClient.resolve(url);
   }
 
-  async getStreamUrl(streamUrl: string): Promise<string> {
+  async getStreams(id: number): Promise<SoundcloudStreamsResponse> {
     await this.ensureAccessToken();
 
     if (!this.internalClient) {
       throw new Error('Internal client not initialized');
     }
 
-    return this.internalClient.getStreamUrl(streamUrl);
+    return this.internalClient.getStreams(id);
+  }
+
+  async resolvePlaybackUrl(locator: string): Promise<string> {
+    await this.ensureAccessToken();
+
+    if (!this.internalClient) {
+      throw new Error('Internal client not initialized');
+    }
+
+    return this.internalClient.resolvePlaybackUrl(locator);
   }
 
   async resolve(url: string): Promise<Track> {
     const trackData = await this.resolveMetadata(url);
-    const streamUrl = await this.getStreamUrl(trackData.stream_url);
+    const streams = await this.getStreams(trackData.id);
+    const streamUrl = await this.resolvePlaybackUrl(selectHlsLocator(streams));
 
     return {
       streamUrl,
@@ -226,6 +272,10 @@ export class CachedSoundcloudClient implements SoundcloudClientInterface {
       60 * 60 * 1000,
       10 * 60 * 1000,
     ),
+    private readonly streamsCache: Cache<SoundcloudStreamsResponse> = new Cache<SoundcloudStreamsResponse>(
+      60 * 60 * 1000,
+      10 * 60 * 1000,
+    ),
   ) {}
 
   async resolveMetadata(url: string): Promise<SoundcloudTrackResponse> {
@@ -235,28 +285,55 @@ export class CachedSoundcloudClient implements SoundcloudClientInterface {
       if (cached === null) {
         throw new Error('SoundCloud track resolution failed (cached error)');
       }
-      console.log('cache hit');
+      console.log('metadata cache hit');
       return cached;
     }
 
     try {
-      console.log('cache miss');
+      console.log('metadata cache miss');
       const result = await this.client.resolveMetadata(url);
       this.cache.set(url, result);
       return result;
-    } catch (error) {
+    } catch (error: unknown) {
       this.cache.set(url, null);
       throw error;
     }
   }
 
-  async getStreamUrl(streamUrl: string): Promise<string> {
-    return this.client.getStreamUrl(streamUrl);
+  async getStreams(id: number): Promise<SoundcloudStreamsResponse> {
+    const key = String(id);
+    const cached = this.streamsCache.get(key);
+
+    if (cached !== undefined) {
+      console.log('streams cache hit');
+      return cached;
+    }
+
+    console.log('streams cache miss');
+    const streams = await this.client.getStreams(id);
+    this.streamsCache.set(key, streams);
+    return streams;
+  }
+
+  async resolvePlaybackUrl(locator: string): Promise<string> {
+    return this.client.resolvePlaybackUrl(locator);
   }
 
   async resolve(url: string): Promise<Track> {
     const trackData = await this.resolveMetadata(url);
-    const streamUrl = await this.getStreamUrl(trackData.stream_url);
+
+    const streams = await this.getStreams(trackData.id);
+    let streamUrl: string;
+    try {
+      streamUrl = await this.resolvePlaybackUrl(selectHlsLocator(streams));
+    } catch (error: unknown) {
+      // a cached locator can go stale; evict it, re-fetch the streams endpoint, and retry once.
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`streams locator stale (${message}), evicting and refetching`);
+      this.streamsCache.delete(String(trackData.id));
+      const freshStreams = await this.getStreams(trackData.id);
+      streamUrl = await this.resolvePlaybackUrl(selectHlsLocator(freshStreams));
+    }
 
     return {
       streamUrl,
@@ -285,8 +362,12 @@ export class ConcurrencyLimitedSoundcloudClient implements SoundcloudClientInter
     return this.limiter.run(() => this.client.resolveMetadata(url));
   }
 
-  async getStreamUrl(streamUrl: string): Promise<string> {
-    return this.limiter.run(() => this.client.getStreamUrl(streamUrl));
+  async getStreams(id: number): Promise<SoundcloudStreamsResponse> {
+    return this.limiter.run(() => this.client.getStreams(id));
+  }
+
+  async resolvePlaybackUrl(locator: string): Promise<string> {
+    return this.limiter.run(() => this.client.resolvePlaybackUrl(locator));
   }
 
   async resolve(url: string): Promise<Track> {

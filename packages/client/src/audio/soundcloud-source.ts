@@ -1,9 +1,11 @@
+import Hls from 'hls.js/dist/hls.light.mjs';
 import type { AudioSource } from './types';
 
 export class SoundCloudSource implements AudioSource {
   private audio: HTMLAudioElement;
   private sourceNode: MediaElementAudioSourceNode;
   private audioCtx: AudioContext;
+  private hls: Hls | null = null;
 
   constructor(audioCtx: AudioContext) {
     this.audioCtx = audioCtx;
@@ -47,6 +49,15 @@ export class SoundCloudSource implements AudioSource {
   }
 
   async load(streamUrl: string): Promise<void> {
+    this.destroyHls();
+
+    if (Hls.isSupported()) {
+      this.hls = new Hls();
+      this.hls.attachMedia(this.audio);
+      this.hls.loadSource(streamUrl);
+      return;
+    }
+
     this.audio.src = streamUrl;
     await this.audio.load();
   }
@@ -65,9 +76,15 @@ export class SoundCloudSource implements AudioSource {
   stop(): void {
     this.audio.pause();
     this.audio.currentTime = 0;
+    this.destroyHls();
   }
 
   getAudioElement(): HTMLAudioElement {
     return this.audio;
+  }
+
+  private destroyHls(): void {
+    this.hls?.destroy();
+    this.hls = null;
   }
 }
