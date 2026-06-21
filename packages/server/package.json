@@ -8,6 +8,7 @@
     "dev": "node --env-file=../../.env.local --import tsx/esm --watch src/index.ts",
     "build": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/server.bundle.cjs",
     "start": "node --env-file=../../.env.local dist/server.bundle.cjs",
+    "check": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write . --ignore-path ../../.prettierignore",

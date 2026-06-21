@@ -1,2 +1,2 @@
 // barrel export for shared types
-export type { Track } from './track';
+export type { Track } from './track.js';
