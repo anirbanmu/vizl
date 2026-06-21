@@ -8,13 +8,18 @@ import type { Track } from '@vizl/common/track.js';
 const SOUNDCLOUD_API_BASE_URL = 'https://api.soundcloud.com';
 const SOUNDCLOUD_OAUTH_TOKEN_URL = 'https://secure.soundcloud.com/oauth/token';
 const SOUNDCLOUD_RESOLVE_URL = `${SOUNDCLOUD_API_BASE_URL}/resolve`;
+
+function soundcloudStreamsUrl(id: number): string {
+  return `${SOUNDCLOUD_API_BASE_URL}/tracks/${id}/streams`;
+}
+
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes
 const TOKEN_CACHE_FILE = path.resolve(process.cwd(), '../../.soundcloud-token.json');
 
 export interface SoundcloudClientInterface {
   resolve(url: string): Promise<Track>;
   resolveMetadata(url: string): Promise<SoundcloudTrackResponse>;
-  getStreamUrl(streamUrl: string): Promise<string>;
+  getStreamUrl(id: number): Promise<string>;
 }
 
 export interface SoundcloudClientCredentials {
@@ -34,6 +39,7 @@ interface TokenState {
 }
 
 export interface SoundcloudTrackResponse {
+  id: number;
   stream_url: string;
   permalink_url: string;
   title: string;
@@ -42,6 +48,11 @@ export interface SoundcloudTrackResponse {
     username: string;
     permalink_url: string;
   };
+}
+
+export interface SoundcloudStreamsResponse {
+  hls_aac_160_url?: string;
+  hls_aac_96_url?: string;
 }
 
 export class SoundcloudApiError extends Error {
@@ -76,22 +87,23 @@ export class SoundcloudClient implements SoundcloudClientInterface {
       return (await response.json()) as SoundcloudTrackResponse;
     }
 
-    async getStreamUrl(streamUrl: string): Promise<string> {
-      const streamResponse = await fetch(streamUrl, {
+    async getStreamUrl(id: number): Promise<string> {
+      const response = await fetch(soundcloudStreamsUrl(id), {
         headers: this.headers,
-        redirect: 'manual',
       });
 
-      if (streamResponse.status !== 302) {
-        throw new SoundcloudApiError(streamResponse.status);
+      if (!response.ok) {
+        throw new SoundcloudApiError(response.status);
       }
 
-      const location = streamResponse.headers.get('location');
-      if (!location) {
-        throw new SoundcloudApiError(streamResponse.status);
+      const streams = (await response.json()) as SoundcloudStreamsResponse;
+      const url = streams.hls_aac_160_url ?? streams.hls_aac_96_url;
+
+      if (!url) {
+        throw new Error('soundcloud streams endpoint returned no hls aac variant');
       }
 
-      return location;
+      return url;
     }
   };
 
@@ -192,19 +204,19 @@ export class SoundcloudClient implements SoundcloudClientInterface {
     return this.internalClient.resolve(url);
   }
 
-  async getStreamUrl(streamUrl: string): Promise<string> {
+  async getStreamUrl(id: number): Promise<string> {
     await this.ensureAccessToken();
 
     if (!this.internalClient) {
       throw new Error('Internal client not initialized');
     }
 
-    return this.internalClient.getStreamUrl(streamUrl);
+    return this.internalClient.getStreamUrl(id);
   }
 
   async resolve(url: string): Promise<Track> {
     const trackData = await this.resolveMetadata(url);
-    const streamUrl = await this.getStreamUrl(trackData.stream_url);
+    const streamUrl = await this.getStreamUrl(trackData.id);
 
     return {
       streamUrl,
@@ -250,13 +262,13 @@ export class CachedSoundcloudClient implements SoundcloudClientInterface {
     }
   }
 
-  async getStreamUrl(streamUrl: string): Promise<string> {
-    return this.client.getStreamUrl(streamUrl);
+  async getStreamUrl(id: number): Promise<string> {
+    return this.client.getStreamUrl(id);
   }
 
   async resolve(url: string): Promise<Track> {
     const trackData = await this.resolveMetadata(url);
-    const streamUrl = await this.getStreamUrl(trackData.stream_url);
+    const streamUrl = await this.getStreamUrl(trackData.id);
 
     return {
       streamUrl,
@@ -285,8 +297,8 @@ export class ConcurrencyLimitedSoundcloudClient implements SoundcloudClientInter
     return this.limiter.run(() => this.client.resolveMetadata(url));
   }
 
-  async getStreamUrl(streamUrl: string): Promise<string> {
-    return this.limiter.run(() => this.client.getStreamUrl(streamUrl));
+  async getStreamUrl(id: number): Promise<string> {
+    return this.limiter.run(() => this.client.getStreamUrl(id));
   }
 
   async resolve(url: string): Promise<Track> {
