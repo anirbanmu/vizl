@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.5",
-    "hono": "^4.12.26",
+    "hono": "^4.12.34",
     "ky": "^2.0.2",
     "supports-color": "^10.2.2"
   }
