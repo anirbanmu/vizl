@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [svelte()],
   resolve: {
     alias: {
-      '@common': path.resolve(__dirname, '../common'),
+      '@common': path.resolve(import.meta.dirname, '../common'),
     },
   },
   server: {
