@@ -14,11 +14,11 @@
     "format:check": "prettier --check . --ignore-path ../../.prettierignore"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^7.3.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tsconfig/svelte": "^5.0.8",
-    "hls.js": "^1.7.1",
-    "svelte": "^5.56.10",
+    "hls.js": "^1.7.3",
+    "svelte": "^5.57.1",
     "svelte-check": "^4.7.6",
-    "vite": "^8.2.2"
+    "vite": "^8.3.1"
   }
 }
